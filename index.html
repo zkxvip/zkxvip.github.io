@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linux 一键多功能工具箱 - tool.sh</title>
+<style>
+    body {
+        margin: 0;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #0d1117;
+        color: #c9d1d9;
+        line-height: 1.6;
+    }
+
+    header {
+        padding: 40px 20px;
+        text-align: center;
+        background: linear-gradient(135deg, #0066ff55, #00ffaa22);
+        border-bottom: 1px solid #222;
+    }
+
+    h1 {
+        font-size: 32px;
+        margin-bottom: 10px;
+        color: #58a6ff;
+    }
+
+    h2 {
+        color: #58a6ff;
+        margin-top: 40px;
+    }
+
+    .container {
+        max-width: 900px;
+        margin: auto;
+        padding: 20px;
+    }
+
+    .card {
+        background: #161b22;
+        padding: 20px;
+        border-radius: 10px;
+        margin-top: 20px;
+        border: 1px solid #30363d;
+        box-shadow: 0 0 10px #00000055;
+    }
+
+    .button {
+        display: inline-block;
+        padding: 12px 22px;
+        background: #238636;
+        color: white;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 16px;
+        margin-top: 10px;
+        transition: 0.2s;
+    }
+    .button:hover {
+        background: #2ea043;
+    }
+
+    pre {
+        background: #0d1117;
+        border: 1px solid #30363d;
+        padding: 16px;
+        border-radius: 8px;
+        overflow-x: auto;
+        color: #9cdcfe;
+    }
+
+    footer {
+        text-align: center;
+        padding: 20px;
+        color: #555;
+        margin-top: 40px;
+        font-size: 14px;
+    }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Linux 多功能工具箱</h1>
+    <p>一键系统信息、系统清理、IP 测试、应用安装的万能脚本</p>
+</header>
+
+<div class="container">
+
+    <div class="card">
+        <h2>🚀 一键运行脚本</h2>
+        <p>在任意 Linux 环境中执行以下命令即可运行：</p>
+        <pre>bash &lt;(curl -sL http://your-domain/tool.sh)</pre>
+        <a class="button" href="http://your-domain/tool.sh">点击下载脚本</a>
+    </div>
+
+    <div class="card">
+        <h2>📌 脚本主要功能</h2>
+        <ul>
+            <li>✔ 系统信息检测（CPU / 内存 / IPv4 / IPv6 / MAC / 硬盘）</li>
+            <li>✔ 系统更新、系统清理</li>
+            <li>✔ 系统工具：htop、iftop、vnstat</li>
+            <li>✔ 应用快速安装：Docker、Nginx、Node.js</li>
+            <li>✔ 安装宝塔 / 1Panel</li>
+            <li>✔ 高级 IP 连通性检测（顺序逐个平台）</li>
+            <li>✔ 支持地区平台：Netflix / Disney+ / ChatGPT / Steam / Spotify 等</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>🌐 支持的流媒体 & 服务检测</h2>
+        <p>逐一检测平台连通性、DNS 解析、HTTPS、HTTP、IP 直连、PING：</p>
+        <ul>
+            <li>Dazn</li>
+            <li>HotStar</li>
+            <li>Disney+</li>
+            <li>Netflix</li>
+            <li>YouTube Premium</li>
+            <li>Amazon Prime Video</li>
+            <li>TVBAnywhere+</li>
+            <li>iQiyi Overseas</li>
+            <li>Viu</li>
+            <li>YouTube CDN</li>
+            <li>Netflix Preferred CDN</li>
+            <li>Spotify</li>
+            <li>Steam</li>
+            <li>ChatGPT</li>
+            <li>Bing Region</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>🛠 脚本版本</h2>
+        <p>当前版本：<strong>v1.3.0</strong></p>
+        <p>脚本默认从服务器自动更新：</p>
+        <pre>bash tool.sh → 选择「脚本更新」</pre>
+    </div>
+
+</div>
+
+<footer>
+    Linux 多功能工具箱 | 自由开源脚本
+</footer>
+
+</body>
+</html>
