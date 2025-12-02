@@ -82,8 +82,8 @@ system_info() {
         distro=$(awk -F= '/^PRETTY_NAME/ {gsub(/"/,"",$2); print $2}' /etc/os-release)
     fi
 
-    echo -e "系统： ${yellow}${distro}${plain}"
-    echo -e "内核： ${yellow}$(uname -r)${plain}"
+    echo -e "操作系统： ${yellow}${distro}${plain}"
+    echo -e "内核信息： ${yellow}$(uname -r)${plain}"
 
     # CPU 信息
     local cpu_model
