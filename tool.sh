@@ -238,7 +238,7 @@ test_domain_table() {
         ping_out="不可 ping"
     fi
 
-    printf "%-24s %-28s %-16s %-14s %-20s %-10s\n" \
+    printf "%-30s %-30s %-15s %-15s %-15s %-15s\n" \
     "$domain" "$dns_out" "$https_out" "$http_out" "$raw_out" "$ping_out"
 }
 
