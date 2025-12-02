@@ -93,12 +93,12 @@ system_info() {
 
     # ========== CPU 占用（新增） =============
     cpu_total=$(get_cpu_total_usage)
-    echo -e "CPU 总占用： ${yellow}${cpu_total}%${plain}"
+    echo -e "CPU 总占： ${yellow}${cpu_total}%${plain}"
 
     # ========== CPU 各核心（新增） ============
     cpu_cores_usage=($(get_cpu_cores_usage))
 
-    echo -ne "CPU 各核心： "
+    echo -ne "CPU 各核： "
     for i in "${!cpu_cores_usage[@]}"; do
         echo -ne "核$i ${yellow}${cpu_cores_usage[$i]}%${plain}  "
     done
@@ -131,8 +131,8 @@ system_info() {
     # 公网 IP
     ipv4=$(curl -4 -s --connect-timeout 3 --max-time 5 ifconfig.me || echo "获取失败")
     ipv6=$(curl -6 -s --connect-timeout 3 --max-time 5 ifconfig.me || echo "获取失败")
-    echo -e "公网 IPv4： ${yellow}${ipv4}${plain}"
-    echo -e "公网 IPv6： ${yellow}${ipv6}${plain}"
+    echo -e "公网IPv4： ${yellow}${ipv4}${plain}"
+    echo -e "公网IPv6： ${yellow}${ipv6}${plain}"
 
     # 运行时间
     uptime_sec=$(awk '{print int($1)}' /proc/uptime)
