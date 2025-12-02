@@ -1,20 +1,15 @@
 #!/bin/bash
 
 # =====================================================
-
 # Linux 多功能工具箱（带顺序 IP 测试）tool.sh
-
-# 版本：1.3.0
-
+# 版本：1.3.0（修复版）
 # =====================================================
 
 SCRIPT_VERSION="1.3.0"
-SCRIPT_URL="[http://your-ip-or-domain/tool.sh](http://your-ip-or-domain/tool.sh)"   # 更新脚本使用，请改成你的地址
+SCRIPT_URL="http://your-ip-or-domain/tool.sh"   # 更新脚本使用，请改成你的地址
 
 # ================================
-
 # 基础颜色
-
 # ================================
 
 green="\033[32m"
@@ -24,91 +19,61 @@ blue="\033[36m"
 plain="\033[0m"
 
 # ================================
-
-# 系统信息（增强版：IPv4/IPv6/MAC/CPU/内存/硬盘）
-
+# 系统信息（增强版）
 # ================================
 
 system_info() {
 echo -e "${blue}========== 系统信息 ==========${plain}"
 
-```
 local distro
 if command -v lsb_release >/dev/null 2>&1; then
     distro=$(lsb_release -d 2>/dev/null | awk -F':' '{print $2}' | xargs)
 else
-    distro=$(awk -F= '/^PRETTY_NAME/{gsub(/"/,"",$2); print $2}' /etc/os-release 2>/dev/null || cat /etc/os-release 2>/dev/null | head -n1)
+    distro=$(awk -F= '/^PRETTY_NAME/{gsub(/"/,"",$2); print $2}' /etc/os-release 2>/dev/null)
 fi
 echo -e "系统： ${yellow}${distro}${plain}"
 echo -e "内核： ${yellow}$(uname -r)${plain}"
 
 local cpu_model
 cpu_model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | awk -F: '{print $2}' | xargs)
-if [[ -z "$cpu_model" ]]; then
-    cpu_model=$(awk -F: '/^Model name/{print $2; exit}' /proc/cpuinfo 2>/dev/null | xargs)
-fi
-local cpu_cores
-cpu_cores=$(nproc --all 2>/dev/null || echo "-")
-local cpu_freq
-if command -v lscpu >/dev/null 2>&1; then
-    cpu_freq=$(lscpu 2>/dev/null | awk -F: '/CPU MHz/{print $2}' | xargs)
-else
-    cpu_freq=$(awk -F: '/cpu MHz/{print $2; exit}' /proc/cpuinfo 2>/dev/null | xargs)
-fi
+local cpu_cores=$(nproc --all)
+local cpu_freq=$(lscpu | awk -F: '/CPU MHz/{print $2}' | xargs)
 echo -e "CPU 型号： ${yellow}${cpu_model}${plain}"
 echo -e "CPU 核心： ${yellow}${cpu_cores}${plain}"
-if [[ -n "$cpu_freq" ]]; then
-    echo -e "CPU 主频： ${yellow}${cpu_freq} MHz${plain}"
-fi
+echo -e "CPU 主频： ${yellow}${cpu_freq} MHz${plain}"
 
-local mac
-mac=$(ip -o link 2>/dev/null | awk '/link\/ether/ {print $2; exit}')
-if [[ -z "$mac" ]]; then
-    mac=$(cat /sys/class/net/*/address 2>/dev/null | grep -v '^00:00:00' | head -n1 || echo "未知")
-fi
+local mac=$(cat /sys/class/net/*/address 2>/dev/null | grep -v '^00:00:00' | head -n1)
 echo -e "MAC 地址： ${yellow}${mac}${plain}"
 
-local ipv4 ipv6
-ipv4=$(curl -4 -s --connect-timeout 3 --max-time 5 ifconfig.me || echo "获取失败")
-ipv6=$(curl -6 -s --connect-timeout 3 --max-time 5 ifconfig.me || echo "获取失败")
+local ipv4=$(curl -4 -s --connect-timeout 3 --max-time 5 ifconfig.me || echo "获取失败")
+local ipv6=$(curl -6 -s --connect-timeout 3 --max-time 5 ifconfig.me || echo "获取失败")
 echo -e "公网 IPv4： ${yellow}${ipv4}${plain}"
 echo -e "公网 IPv6： ${yellow}${ipv6}${plain}"
 
-local mem_total mem_used mem_available mem_used_pct
-mem_total=$(free -m | awk '/Mem:/ {print $2}')
-mem_used=$(free -m | awk '/Mem:/ {print $3}')
-mem_available=$(free -m | awk '/Mem:/ {print $7}')
-if [[ -z "$mem_total" || "$mem_total" == "0" ]]; then
-    echo -e "内存信息： ${yellow}无法获取${plain}"
-else
-    mem_used_pct=$(awk -v t="$mem_total" -v a="$mem_available" 'BEGIN{used=(t-a); if(t>0) printf("%.1f", used*100/t); else print "0"}')
-    echo -e "内存总量： ${yellow}${mem_total} MB${plain}"
-    echo -e "内存已用： ${yellow}$((mem_total - mem_available)) MB${plain}"
-    echo -e "内存可用： ${yellow}${mem_available} MB${plain}"
-    echo -e "内存占用： ${yellow}${mem_used_pct}%${plain}"
-fi
+local mem_total=$(free -m | awk '/Mem:/ {print $2}')
+local mem_available=$(free -m | awk '/Mem:/ {print $7}')
+echo -e "内存总量： ${yellow}${mem_total} MB${plain}"
+echo -e "内存已用： ${yellow}$((mem_total - mem_available)) MB${plain}"
+echo -e "内存可用： ${yellow}${mem_available} MB${plain}"
 
-local disk_total disk_used disk_avail disk_pct
-disk_total=$(df -h / | awk 'NR==2{print $2}')
-disk_used=$(df -h / | awk 'NR==2{print $3}')
-disk_avail=$(df -h / | awk 'NR==2{print $4}')
-disk_pct=$(df -h / | awk 'NR==2{print $5}')
+local mem_used_pct=$(awk -v t="$mem_total" -v a="$mem_available" 'BEGIN{print (t-a)*100/t}')
+echo -e "内存占用： ${yellow}$(printf "%.1f" "$mem_used_pct")%${plain}"
+
+local disk_total=$(df -h / | awk 'NR==2{print $2}')
+local disk_used=$(df -h / | awk 'NR==2{print $3}')
+local disk_avail=$(df -h / | awk 'NR==2{print $4}')
+local disk_pct=$(df -h / | awk 'NR==2{print $5}')
 echo -e "硬盘总量： ${yellow}${disk_total}${plain}"
 echo -e "硬盘已用： ${yellow}${disk_used}${plain}"
 echo -e "硬盘可用： ${yellow}${disk_avail}${plain}"
 echo -e "硬盘占用： ${yellow}${disk_pct}${plain}"
 
 echo -e "${blue}====================================${plain}"
-```
-
 }
 
 # ================================
-
 # 系统更新
-
 # ================================
-
 system_update() {
 echo -e "${green}正在更新系统...${plain}"
 apt update && apt upgrade -y
@@ -116,11 +81,8 @@ echo -e "${green}系统更新完成！${plain}"
 }
 
 # ================================
-
 # 系统清理
-
 # ================================
-
 system_clean() {
 echo -e "${green}正在清理系统...${plain}"
 apt autoremove -y
@@ -130,11 +92,8 @@ echo -e "${green}系统清理完成！${plain}"
 }
 
 # ================================
-
 # 系统工具
-
 # ================================
-
 system_tools() {
 echo -e "${blue}===== 系统工具 =====${plain}"
 echo "1) htop"
@@ -143,7 +102,6 @@ echo "3) vnstat"
 echo "4) 返回菜单"
 read -p "请选择：" t
 
-```
 case $t in
     1) apt install -y htop && htop ;;
     2) apt install -y iftop && iftop ;;
@@ -151,16 +109,11 @@ case $t in
     4) ;;
     *) echo "无效选择" ;;
 esac
-```
-
 }
 
 # ================================
-
 # 应用市场
-
 # ================================
-
 app_market() {
 echo -e "${blue}===== 应用市场 =====${plain}"
 echo "1) Docker"
@@ -169,7 +122,6 @@ echo "3) Node.js"
 echo "4) 返回菜单"
 read -p "请选择：" a
 
-```
 case $a in
     1) apt install -y docker.io ;;
     2) apt install -y nginx ;;
@@ -177,38 +129,27 @@ case $a in
     4) ;;
     *) echo "无效选择" ;;
 esac
-```
-
 }
 
 # ================================
-
-# 安装宝塔
-
+# 安装宝塔（修复版）
 # ================================
-
 install_bt() {
 echo -e "${yellow}正在安装宝塔...${plain}"
-curl -sSO [https://download.bt.cn/install/install_panel.sh](https://download.bt.cn/install/install_panel.sh) && bash install_panel.sh
+curl -sSO https://download.bt.cn/install/install_panel.sh && bash install_panel.sh
 }
 
 # ================================
-
-# 安装 1Panel
-
+# 安装 1Panel（修复版）
 # ================================
-
 install_1panel() {
 echo -e "${yellow}正在安装 1Panel...${plain}"
-curl -sSL [https://resource.fit2cloud.com/1panel/install.sh](https://resource.fit2cloud.com/1panel/install.sh) | bash
+curl -sSL https://resource.fit2cloud.com/1panel/install.sh | bash
 }
 
 # ================================
-
-# IP 测试（顺序输出表格）
-
+# IP 测试平台列表
 # ================================
-
 platforms=(
 "Dazn:dazn.com"
 "HotStar:hotstar.com"
@@ -228,33 +169,32 @@ platforms=(
 )
 
 print_table_header() {
-printf "%-20s %-25s %-18s %-15s %-18s %-10s\n" 
+printf "%-20s %-25s %-18s %-15s %-18s %-10s\n" \
 "域名" "DNS 测试" "HTTPS 测试" "HTTP 测试" "IP 直连测试" "PING 测试"
-printf "%-20s %-25s %-18s %-15s %-18s %-10s\n" 
+printf "%-20s %-25s %-18s %-15s %-18s %-10s\n" \
 "--------------------" "-------------------------" "------------------" "---------------" "------------------" "----------"
 }
 
 test_domain_table() {
 local domain=$1
 
-```
 local ip=$(dig +short A "$domain" 2>/dev/null | grep -E '^[0-9.]+' | head -n1)
 [[ -n "$ip" ]] && dns_out="正常 ($ip)" || dns_out="异常 (解析失败)"
 
-local https_status=$(curl -I -s --connect-timeout 10 --max-time 10 "https://$domain" 2>/dev/null | head -n1 | awk '{print $2}')
+local https_status=$(curl -I -s --connect-timeout 10 --max-time 10 "https://$domain" | head -n1 | awk '{print $2}')
 if [[ -z "$https_status" ]]; then https_out="失败（超时）"
-elif [[ "$https_status" -ge 200 && "$https_status" -lt 400 ]]; then https_out="正常 ($https_status)"
+elif [[ $https_status -ge 200 && $https_status -lt 400 ]]; then https_out="正常 ($https_status)"
 else https_out="异常 ($https_status)"; fi
 
-local http_status=$(curl -I -s --connect-timeout 10 --max-time 10 "http://$domain" 2>/dev/null | head -n1 | awk '{print $2}')
+local http_status=$(curl -I -s --connect-timeout 10 --max-time 10 "http://$domain" | head -n1 | awk '{print $2}')
 if [[ -z "$http_status" ]]; then http_out="失败（超时）"
-elif [[ "$http_status" -ge 200 && "$http_status" -lt 400 ]]; then http_out="正常 ($http_status)"
+elif [[ $http_status -ge 200 && $http_status -lt 400 ]]; then http_out="正常 ($http_status)"
 else http_out="异常 ($http_status)"; fi
 
 if [[ -n "$ip" ]]; then
-    local raw_status=$(curl -I -s --connect-timeout 10 --max-time 10 --resolve "$domain:443:$ip" "https://$domain" 2>/dev/null | head -n1 | awk '{print $2}')
+    local raw_status=$(curl -I -s --connect-timeout 10 --max-time 10 --resolve "$domain:443:$ip" "https://$domain" | head -n1 | awk '{print $2}')
     if [[ -z "$raw_status" ]]; then raw_out="失败（超时）"
-    elif [[ "$raw_status" -ge 200 && "$raw_status" -lt 400 ]]; then raw_out="正常 ($raw_status)"
+    elif [[ $raw_status -ge 200 && $raw_status -lt 400 ]]; then raw_out="正常 ($raw_status)"
     else raw_out="异常 ($raw_status)"; fi
 else
     raw_out="无法测试（无 IP）"
@@ -264,46 +204,36 @@ if ping -c1 -W1 "$domain" &>/dev/null; then ping_out="可 ping"; else ping_out="
 
 printf "%-20s %-25s %-18s %-15s %-18s %-10s\n" \
 "$domain" "$dns_out" "$https_out" "$http_out" "$raw_out" "$ping_out"
-```
-
 }
 
 test_ip_connect_table() {
 clear
 echo -e "${blue}=========== 高级 IP 测试（表格模式） ===========${plain}"
-echo
 print_table_header
 for item in "${platforms[@]}"; do
-domain=${item##*:}
-test_domain_table "$domain"
+    domain=${item##*:}
+    test_domain_table "$domain"
 done
-echo
-echo -e "${green}测试完成！${plain}\n"
+echo -e "${green}测试完成！${plain}"
 }
 
 # ================================
-
 # 脚本更新
-
 # ================================
-
 update_script() {
 echo -e "${yellow}正在更新脚本...${plain}"
 if curl -sSL "$SCRIPT_URL" -o tool.sh; then
-chmod +x tool.sh
-echo -e "${green}脚本更新成功！使用 ./tool.sh 重新运行${plain}"
-exit 0
+    chmod +x tool.sh
+    echo -e "${green}脚本更新成功！使用 ./tool.sh 重新运行${plain}"
+    exit 0
 else
-echo -e "${red}更新失败！${plain}"
+    echo -e "${red}更新失败！${plain}"
 fi
 }
 
 # ================================
-
 # 主菜单
-
 # ================================
-
 menu() {
 clear
 echo -e "${green}=============== Linux 多功能工具箱 ===============${plain}"
@@ -321,7 +251,6 @@ echo "9) 脚本更新"
 echo "0) 退出"
 echo
 
-```
 read -p "请输入选择：" choice
 
 case $choice in
@@ -341,8 +270,6 @@ esac
 echo
 read -p "按回车返回菜单..." temp
 menu
-```
-
 }
 
 menu
