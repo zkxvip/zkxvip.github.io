@@ -271,9 +271,9 @@ platforms=(
 )
 
 print_table_header() {
-    printf "%-30s %-30s %-15s %-15s %-15s %-15s\n" \
+    printf "%-25s %-25s %-15s %-15s %-15s %-15s\n" \
     "域名" "DNS" "HTTPS" "HTTP" "IP 直连" "PING"
-    printf "%-30s %-30s %-15s %-15s %-15s %-15s\n" \
+    printf "%-25s %-25s %-15s %-15s %-15s %-15s\n" \
     "------------------------" "----------------------------" "----------------" "--------------" "--------------------" "----------"
 }
 
@@ -327,7 +327,7 @@ test_domain_table() {
         ping_out="不可 ping"
     fi
 
-    printf "%-30s %-30s %-15s %-15s %-15s %-15s\n" \
+    printf "%-25s %-25s %-15s %-15s %-15s %-15s\n" \
     "$domain" "$dns_out" "$https_out" "$http_out" "$raw_out" "$ping_out"
 }
 
