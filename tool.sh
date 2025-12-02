@@ -200,7 +200,7 @@ test_domain_table() {
     # HTTPS
     local https_status=$(curl -I -s --connect-timeout 8 --max-time 8 https://"$domain" | head -n1 | awk '{print $2}')
     if [[ -z "$https_status" ]]; then
-        https_out="失败(超时)"
+        https_out="失败 (超时)"
     elif [[ "$https_status" -ge 200 && "$https_status" -lt 400 ]]; then
         https_out="正常 ($https_status)"
     else
@@ -210,7 +210,7 @@ test_domain_table() {
     # HTTP
     local http_status=$(curl -I -s --connect-timeout 8 --max-time 8 http://"$domain" | head -n1 | awk '{print $2}')
     if [[ -z "$http_status" ]]; then
-        http_out="失败(超时)"
+        http_out="失败 (超时)"
     elif [[ "$http_status" -ge 200 && "$http_status" -lt 400 ]]; then
         http_out="正常 ($http_status)"
     else
@@ -221,7 +221,7 @@ test_domain_table() {
     if [[ -n "$ip" ]]; then
         raw_status=$(curl -I -s --connect-timeout 8 --max-time 8 --resolve "$domain:443:$ip" https://"$domain" | head -n1 | awk '{print $2}')
         if [[ -z "$raw_status" ]]; then
-            raw_out="失败(超时)"
+            raw_out="失败 (超时)"
         elif [[ "$raw_status" -ge 200 && "$raw_status" -lt 400 ]]; then
             raw_out="正常 ($raw_status)"
         else
