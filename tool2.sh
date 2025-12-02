@@ -184,8 +184,8 @@ system_info() {
     echo -e "硬盘占用： ${yellow}${percent}${plain} (${used} MB/${avail} MB/${total} MB)"
 
     # ========== 网络速度（新增） =============
-    read down up < <(get_net_speed)
-    echo -e "网络速度： ↓ ${yellow}${down} KB/s${plain}   ↑ ${yellow}${up} KB/s${plain}"
+read down_speed up_speed <<< "$(get_net_speed)"
+echo -e "网络速度： ↓ ${down_speed}   ↑ ${up_speed}"
     
     echo -e "${blue}========================================${plain}"
 }
