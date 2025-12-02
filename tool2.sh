@@ -100,7 +100,7 @@ system_info() {
 
     echo -ne "CPU 各核： "
     for i in "${!cpu_cores_usage[@]}"; do
-        echo -ne "核$i ${yellow}${cpu_cores_usage[$i]}%${plain}  "
+        echo -ne "核:$i ${yellow}${cpu_cores_usage[$i]}%${plain}  "
     done
     echo ""
 
