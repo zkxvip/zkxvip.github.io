@@ -380,7 +380,7 @@ menu() {
     echo "0) 脚本退出"
     echo
 
-    read -p "请输入选择：" choice
+    read -p "请输入数字回车：" choice
 
     case $choice in
         1) system_info ;;
