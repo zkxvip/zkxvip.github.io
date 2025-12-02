@@ -157,7 +157,6 @@ system_info() {
     echo -e "网络速度： ↓ ${yellow}${down} KB/s${plain}   ↑ ${yellow}${up} KB/s${plain}"
     
     echo -e "${blue}========================================${plain}"
-    read -p "按回车返回菜单..." temp
 }
 
 # ================================
