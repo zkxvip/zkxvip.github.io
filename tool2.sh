@@ -112,7 +112,7 @@ system_info() {
     local load_color load_msg
     if (( load_usage < 50 )); then
         load_color=$green
-        load_msg="服务器负载较低，运行流畅"
+        load_msg="运行流畅"
     elif (( load_usage < 90 )); then
         load_color=$yellow
         load_msg="运行正常"
@@ -121,11 +121,7 @@ system_info() {
         load_msg="警告：运行堵塞"
     fi
 
-    echo -e "负载状态： ${load_color}${load_msg}${plain}（${load_usage}%）"
-
-    # ========== 网络速度（新增） =============
-    read down up < <(get_net_speed)
-    echo -e "网络速度： ↓ ${yellow}${down} KB/s${plain}   ↑ ${yellow}${up} KB/s${plain}"
+    echo -e "负载状态： （${load_usage}%）${load_color}${load_msg}${plain}"
 
     # MAC
     local mac
@@ -156,6 +152,10 @@ system_info() {
     read -r _ total used avail percent _ < <(df -m / | awk 'NR==2')
     echo -e "硬盘占用： ${yellow}${percent}${plain} (${used} MB/${avail} MB/${total} MB)"
 
+    # ========== 网络速度（新增） =============
+    read down up < <(get_net_speed)
+    echo -e "网络速度： ↓ ${yellow}${down} KB/s${plain}   ↑ ${yellow}${up} KB/s${plain}"
+    
     echo -e "${blue}========================================${plain}"
     read -p "按回车返回菜单..." temp
 }
