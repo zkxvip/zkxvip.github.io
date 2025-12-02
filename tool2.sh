@@ -121,7 +121,7 @@ system_info() {
         load_msg="警告：运行堵塞"
     fi
 
-    echo -e "负载状态： （${load_usage}%）${load_color}${load_msg}${plain}"
+    echo -e "负载状态： ${load_usage}% （${load_color}${load_msg}${plain}）"
 
     # MAC
     local mac
