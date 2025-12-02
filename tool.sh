@@ -138,7 +138,7 @@ app_market() {
 }
 
 # ================================
-# 安装宝塔（修复版）
+# 安装宝塔
 # ================================
 install_bt() {
     echo -e "${yellow}正在安装宝塔...${plain}"
@@ -146,7 +146,7 @@ install_bt() {
 }
 
 # ================================
-# 安装 1Panel（修复版）
+# 安装 1Panel
 # ================================
 install_1panel() {
     echo -e "${yellow}正在安装 1Panel...${plain}"
@@ -154,48 +154,41 @@ install_1panel() {
 }
 
 # ================================
-# IP 测试（顺序输出表格） 强制宽度对齐
+# IP 测试（只保留域名版本）
 # ================================
+
 platforms=(
-"Dazn:dazn.com"
-"HotStar:hotstar.com"
-"Disney+:disneyplus.com"
-"Netflix:netflix.com"
-"YouTube Premium:youtube.com"
-"Amazon Prime Video:primevideo.com"
-"TVBAnywhere+:tvbanywhere.com"
-"iQiyi Oversea Region:iq.com"
-"Viu:viu.com"
-"YouTube CDN:googlevideo.com"
-"Netflix Preferred CDN:nflxvideo.net"
-"Spotify Registration:spotify.com"
-"Steam Currency:store.steampowered.com"
-"ChatGPT:chat.openai.com"
-"Bing Region:bing.com"
+"dazn.com"
+"hotstar.com"
+"disneyplus.com"
+"netflix.com"
+"youtube.com"
+"primevideo.com"
+"tvbanywhere.com"
+"iq.com"
+"viu.com"
+"googlevideo.com"
+"nflxvideo.net"
+"spotify.com"
+"store.steampowered.com"
+"chat.openai.com"
+"bing.com"
 )
 
-# 说明：下面的列宽是固定的（以字符宽度为准）
-# %-24s 域名列（24 字符宽）
-# %-28s DNS 测试列（28 字符宽）
-# %-16s HTTPS 列（16 字符宽）
-# %-14s HTTP 列（14 字符宽）
-# %-20s IP 直连列（20 字符宽）
-# %-10s PING 列（10 字符宽）
+# 列宽说明
 print_table_header() {
-    # 使用纯 ASCII 标题（中文会占两个单元格宽，可能影响视觉对齐，但列格式固定）
     printf "%-24s %-28s %-16s %-14s %-20s %-10s\n" \
     "域名" "DNS 测试" "HTTPS 测试" "HTTP 测试" "IP 直连测试" "PING 测试"
     printf "%-24s %-28s %-16s %-14s %-20s %-10s\n" \
     "------------------------" "----------------------------" "----------------" "--------------" "--------------------" "----------"
 }
 
-# 测试单个域名并按固定宽度打印一行
 test_domain_table() {
     local domain="$1"
 
-    # 解析 A 记录以获取第一个 IPv4
+    # DNS 解析
     local ip
-    ip=$(dig +short A "$domain" 2>/dev/null | grep -E '^[0-9.]+' | head -n1)
+    ip=$(dig +short A "$domain" | grep -E '^[0-9.]+' | head -n1)
 
     local dns_out
     if [[ -n "$ip" ]]; then
@@ -204,10 +197,8 @@ test_domain_table() {
         dns_out="异常 (解析失败)"
     fi
 
-    # HTTPS 测试（短响应头）
-    local https_status
-    https_status=$(curl -I -s --connect-timeout 8 --max-time 8 "https://$domain" 2>/dev/null | head -n1 | awk '{print $2}')
-    local https_out
+    # HTTPS
+    local https_status=$(curl -I -s --connect-timeout 8 --max-time 8 https://"$domain" | head -n1 | awk '{print $2}')
     if [[ -z "$https_status" ]]; then
         https_out="失败(超时)"
     elif [[ "$https_status" -ge 200 && "$https_status" -lt 400 ]]; then
@@ -216,10 +207,8 @@ test_domain_table() {
         https_out="异常 ($https_status)"
     fi
 
-    # HTTP 测试
-    local http_status
-    http_status=$(curl -I -s --connect-timeout 8 --max-time 8 "http://$domain" 2>/dev/null | head -n1 | awk '{print $2}')
-    local http_out
+    # HTTP
+    local http_status=$(curl -I -s --connect-timeout 8 --max-time 8 http://"$domain" | head -n1 | awk '{print $2}')
     if [[ -z "$http_status" ]]; then
         http_out="失败(超时)"
     elif [[ "$http_status" -ge 200 && "$http_status" -lt 400 ]]; then
@@ -228,11 +217,9 @@ test_domain_table() {
         http_out="异常 ($http_status)"
     fi
 
-    # IP 直连（使用 --resolve 强制 host -> ip）测试 HTTPS
-    local raw_out
+    # IP 直连
     if [[ -n "$ip" ]]; then
-        local raw_status
-        raw_status=$(curl -I -s --connect-timeout 8 --max-time 8 --resolve "$domain:443:$ip" "https://$domain" 2>/dev/null | head -n1 | awk '{print $2}')
+        raw_status=$(curl -I -s --connect-timeout 8 --max-time 8 --resolve "$domain:443:$ip" https://"$domain" | head -n1 | awk '{print $2}')
         if [[ -z "$raw_status" ]]; then
             raw_out="失败(超时)"
         elif [[ "$raw_status" -ge 200 && "$raw_status" -lt 400 ]]; then
@@ -244,29 +231,25 @@ test_domain_table() {
         raw_out="无法测试(无 IP)"
     fi
 
-    # PING 测试（对域名 ping）
-    local ping_out
+    # PING
     if ping -c1 -W1 "$domain" &>/dev/null; then
         ping_out="可 ping"
     else
         ping_out="不可 ping"
     fi
 
-    # 打印到表格：注意所有字段都是纯文本（不带颜色转义）
     printf "%-24s %-28s %-16s %-14s %-20s %-10s\n" \
     "$domain" "$dns_out" "$https_out" "$http_out" "$raw_out" "$ping_out"
 }
 
 test_ip_connect_table() {
     clear
-    # 表头前使用颜色高亮提示，但不在单元格内部使用颜色
     echo -e "${blue}=========== 高级 IP 测试（表格模式） ===========${plain}"
     echo
 
     print_table_header
 
-    for item in "${platforms[@]}"; do
-        domain=${item##*:}
+    for domain in "${platforms[@]}"; do
         test_domain_table "$domain"
     done
 
@@ -296,16 +279,16 @@ menu() {
     echo -e "${green}=============== Linux 多功能工具箱 ===============${plain}"
     echo -e "脚本版本：${yellow}$SCRIPT_VERSION${plain}"
     echo
-    echo "1) 查看系统信息"
+    echo "1) 系统信息"
     echo "2) 系统更新"
     echo "3) 系统清理"
     echo "4) 系统工具"
     echo "5) 应用市场"
     echo "6) 安装宝塔"
-    echo "7) 安装 1Panel"
-    echo "8) IP 测试（表格模式）"
+    echo "7) 安装1Panel"
+    echo "8) I P 测试"
     echo "9) 脚本更新"
-    echo "0) 退出"
+    echo "0) 脚本退出"
     echo
 
     read -p "请输入选择：" choice
