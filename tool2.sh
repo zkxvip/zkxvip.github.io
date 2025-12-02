@@ -53,6 +53,7 @@ get_cpu_cores_usage() {
 # ================================
 get_net_speed() {
     local net rx1 tx1 rx2 tx2 down up
+
     net=$(ls /sys/class/net | grep -v lo | head -n1)
 
     rx1=$(cat /sys/class/net/$net/statistics/rx_bytes)
@@ -61,11 +62,41 @@ get_net_speed() {
     rx2=$(cat /sys/class/net/$net/statistics/rx_bytes)
     tx2=$(cat /sys/class/net/$net/statistics/tx_bytes)
 
-    down=$(echo "scale=1; ($rx2-$rx1)/1024" | bc)
-    up=$(echo "scale=1; ($tx2-$tx1)/1024" | bc)
+    down_bytes=$((rx2 - rx1))
+    up_bytes=$((tx2 - tx1))
+
+    format_speed() {
+        local bytes=$1
+        local speed unit
+
+        if (( bytes < 1024 )); then
+            speed=$bytes
+            unit="B/s"
+        elif (( bytes < 1024*1024 )); then
+            speed=$(echo "scale=1; $bytes/1024" | bc)
+            unit="KB/s"
+        elif (( bytes < 1024*1024*1024 )); then
+            speed=$(echo "scale=1; $bytes/1024/1024" | bc)
+            unit="MB/s"
+        else
+            speed=$(echo "scale=1; $bytes/1024/1024/1024" | bc)
+            unit="GB/s"
+        fi
+
+        # 补 0
+        if [[ "$speed" == .* ]]; then
+            speed="0$speed"
+        fi
+
+        echo "$speed $unit"
+    }
+
+    down=$(format_speed "$down_bytes")
+    up=$(format_speed "$up_bytes")
 
     echo "$down" "$up"
 }
+
 
 # ================================
 # 系统信息（强化版）
