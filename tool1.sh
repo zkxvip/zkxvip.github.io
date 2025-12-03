@@ -1,151 +1,809 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# =====================================================
+# Linux 多功能工具箱 — 完整优化版 1.5
+# 包含：系统信息（强化）、顺序 IP 测试、脚本更新等
+# =====================================================
 
-# 隐藏光标并设置退出时恢复
-tput civis
-cleanup() {
-    tput cnorm
-    clear
+SCRIPT_VERSION="1.5.0"
+SCRIPT_URL="http://your-ip-or-domain/tool.sh"     # 更新脚本使用，请改成你的地址
+
+# -------------------
+# 颜色
+# -------------------
+green="\033[32m"
+red="\033[31m"
+yellow="\033[33m"
+blue="\033[36m"
+plain="\033[0m"
+
+# -------------------
+# 检测包管理器（apt / dnf / yum）
+# -------------------
+detect_pkg_mgr() {
+    if command -v apt >/dev/null 2>&1; then
+        PKG="apt"
+    elif command -v dnf >/dev/null 2>&1; then
+        PKG="dnf"
+    elif command -v yum >/dev/null 2>&1; then
+        PKG="yum"
+    else
+        PKG=""
+    fi
 }
-trap cleanup EXIT
+detect_pkg_mgr
 
-# 检测默认网络接口
-NET_IFACE=$(ip route 2>/dev/null | awk '/default/ {print $5; exit}')
-if [ -z "$NET_IFACE" ]; then
-    NET_IFACE=$(ip addr show | awk '/state UP/ && !/lo/ {print $2; exit}' | sed 's/://')
-fi
+# -------------------
+# 工具可用性 helpers
+# -------------------
+ensure_cmd() {
+    # 不自动安装，返回 0 表示存在
+    command -v "$1" >/dev/null 2>&1
+}
 
-# 读取初始网络字节数
-LINE=$(grep "$NET_IFACE:" /proc/net/dev | sed "s/.*://")
-RX_PREV=$(echo "$LINE" | awk '{print $1}')
-TX_PREV=$(echo "$LINE" | awk '{print $9}')
+# -------------------
+# CPU 使用率（总 & 各核） — 标准算法
+# 读取 /proc/stat 两次计算 diff
+# -------------------
+read_cpu_stat_line() {
+    # 参数: line (e.g. "cpu" or "cpu0")
+    awk -v line="$1" '$1==line {print $2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat
+}
 
-# ANSI颜色定义
-RED='\e[31m'; GREEN='\e[32m'; YELLOW='\e[33m'; RESET='\e[0m'
+get_cpu_total_usage() {
+    # 返回整数百分比（0-100）
+    read -r u1 n1 s1 i1 w1 irq1 soft1 steal1 <<< "$(read_cpu_stat_line cpu)"
+    total1=$((u1 + n1 + s1 + i1 + w1 + irq1 + soft1 + steal1))
+    idle1=$((i1 + w1))
+    # 短暂停
+    sleep 0.5
+    read -r u2 n2 s2 i2 w2 irq2 soft2 steal2 <<< "$(read_cpu_stat_line cpu)"
+    total2=$((u2 + n2 + s2 + i2 + w2 + irq2 + soft2 + steal2))
+    idle2=$((i2 + w2))
 
-while true; do
-    # 系统运行时间（天、小时、分钟）
-    UPTIME_SEC=$(awk '{print int($1)}' /proc/uptime)
-    DAYS=$((UPTIME_SEC/86400))
-    HOURS=$(( (UPTIME_SEC%86400)/3600 ))
-    MINS=$(( (UPTIME_SEC%3600)/60 ))
-    CUR_TIME=$(date "+%F %T")
-
-    # 获取负载（1分钟平均），计算百分比
-    LOAD1=$(cut -d ' ' -f1 /proc/loadavg)
-    CPU_CORES=$(nproc)
-    LOADPERCENT=$(printf "%.0f" "$(echo "$LOAD1 / $CPU_CORES * 100" | bc -l)")
-    if [ "$LOADPERCENT" -lt 50 ]; then
-        LOAD_COLOR=$GREEN
-    elif [ "$LOADPERCENT" -lt 90 ]; then
-        LOAD_COLOR=$YELLOW
+    diff_total=$((total2 - total1))
+    diff_idle=$((idle2 - idle1))
+    if (( diff_total > 0 )); then
+        # 乘以 1000 再四舍五入到整数
+        usage=$(( ( (diff_total - diff_idle) * 1000 / diff_total + 5 ) / 10 ))
     else
-        LOAD_COLOR=$RED
+        usage=0
     fi
+    echo "$usage"
+}
 
-    # 计算CPU总体和各核占用
-    # 读取 /proc/stat (第一行cpu，总计各核)
-    IFS=' ' read -r cpu user nice system idle iowait irq softirq steal < /proc/stat
-    CPU_IDLE1=$((idle + iowait))
-    CPU_TOTAL1=$((user + nice + system + idle + iowait + irq + softirq + steal))
-    declare -a CPUS1 CPUS2
-    n=0
-    for line in $(grep '^cpu[0-9]' /proc/stat); do
-        read -r label u n s id i iw ir si st < <(echo $line)
-        CPUS1[$n]=$((u + n + s + iw + ir + si))
-        CPUS1_TOTAL[$n]=$((u + n + s + id + iw + ir + si + st))
-        ((n++))
+get_cpu_cores_usage() {
+    # 返回所有核占用数组，以空格分隔（整数百分比）
+    local cores
+    cores=$(grep -c '^cpu[0-9]' /proc/stat)
+    local -a t1 idle1_arr
+    for ((i=0;i<cores;i++)); do
+        read -r u n s id w irq soft steal <<< "$(read_cpu_stat_line cpu$i)"
+        t1[$i]=$((u + n + s + id + w + irq + soft + steal))
+        idle1_arr[$i]=$((id + w))
     done
 
+    sleep 0.5
+
+    local -a t2 idle2_arr res
+    for ((i=0;i<cores;i++)); do
+        read -r u n s id w irq soft steal <<< "$(read_cpu_stat_line cpu$i)"
+        t2[$i]=$((u + n + s + id + w + irq + soft + steal))
+        idle2_arr[$i]=$((id + w))
+
+        dt=$((t2[i] - t1[i]))
+        di=$((idle2_arr[i] - idle1_arr[i]))
+        if (( dt > 0 )); then
+            res[$i]=$(( ( (dt - di) * 1000 / dt + 5)/10 ))
+        else
+            res[$i]=0
+        fi
+    done
+
+    # 输出空格分隔的占用
+    echo "${res[@]}"
+}
+
+# -------------------
+# 网络速度 — 采样 1 秒，自动单位换算（B/KB/MB/GB）
+# 使用明确分隔符（tab）返回，避免 read 按空格拆分单位
+# -------------------
+format_speed_unit() {
+    # 输入 bytes_per_sec，输出 "X.Y UNIT"
+    local bytes=$1
+    # handle negative (shouldn't happen)
+    if (( bytes < 0 )); then bytes=0; fi
+
+    if (( bytes < 1024 )); then
+        val=$(awk -v b="$bytes" 'BEGIN{printf("%.1f", b)}')
+        unit="B/s"
+    elif (( bytes < 1024*1024 )); then
+        val=$(awk -v b="$bytes" 'BEGIN{printf("%.1f", b/1024)}')
+        unit="KB/s"
+    elif (( bytes < 1024*1024*1024 )); then
+        val=$(awk -v b="$bytes" 'BEGIN{printf("%.1f", b/1024/1024)}')
+        unit="MB/s"
+    else
+        val=$(awk -v b="$bytes" 'BEGIN{printf("%.1f", b/1024/1024/1024)}')
+        unit="GB/s"
+    fi
+    # 补 .7 -> 0.7
+    [[ "$val" == .* ]] && val="0$val"
+    echo "$val $unit"
+}
+
+# -------------------
+# 文件大小格式化
+# -------------------
+format_bytes() {
+    # 输入 bytes，输出 "X.Y UNIT" (B/KB/MB/GB/TB)
+    local bytes=$1
+    local unit=("B" "KB" "MB" "GB" "TB")
+    local i=0
+    local val=$bytes
+
+    # 使用 awk/bc 进行浮点运算
+    if command -v awk >/dev/null 2>&1; then
+        # 使用 awk 进行迭代和格式化
+        awk -v b="$bytes" 'BEGIN{
+            size = b;
+            units[0] = "B"; units[1] = "KB"; units[2] = "MB"; units[3] = "GB"; units[4] = "TB";
+            i = 0;
+            while (size >= 1024 && i < 4) {
+                size /= 1024;
+                i++;
+            }
+            printf "%.2f%s", size, units[i];
+        }'
+    else # Fallback for no awk
+        # Fallback to simple integer division (less accurate)
+        while (( val >= 1024 && i < 4 )); do
+            val=$((val / 1024))
+            i=$((i+1))
+        done
+        printf "%d%s" "$val" "${unit[i]}"
+    fi
+}
+
+# -------------------
+# 兼容性增强：获取主网络接口
+# -------------------
+get_primary_net_iface() {
+    local iface
+    # 1. 尝试使用 'ip' 命令 (最准确)
+    if command -v ip >/dev/null 2>&1; then
+        iface=$(ip -o link show up 2>/dev/null | awk -F': ' '{print $2}' | grep -v '^lo$' | head -n1)
+    fi
+    # 2. 尝试使用 'route' 命令 (次通用)
+    if [[ -z "$iface" ]] && command -v route >/dev/null 2>&1; then
+        iface=$(route | grep '^default' | awk '{print $NF}' | head -n1)
+    fi
+    # 3. 尝试使用 /proc/net/route 文件 (最通用)
+    if [[ -z "$iface" ]] && [[ -f "/proc/net/route" ]]; then
+        iface=$(awk '$2 != "00000000" && $8 == "00000000" {print $1; exit}' /proc/net/route)
+    fi
+    # 4. Fallback to first non-lo directory
+    if [[ -z "$iface" ]]; then
+        iface=$(ls /sys/class/net | grep -v lo | head -n1 2>/dev/null || echo "")
+    fi
+    echo "$iface"
+}
+
+get_net_speed() {
+    local iface
+    iface=$(get_primary_net_iface)
+    if [[ -z "$iface" ]]; then
+        # 使用 tab 分隔下/上行，保证读取时不会被空格拆开
+        printf '%s\t%s' "0.0 KB/s" "0.0 KB/s"
+        return
+    fi
+
+    local rx1 tx1 rx2 tx2 bytes_down bytes_up down up
+    rx1=$(cat /sys/class/net/"$iface"/statistics/rx_bytes 2>/dev/null || echo 0)
+    tx1=$(cat /sys/class/net/"$iface"/statistics/tx_bytes 2>/dev/null || echo 0)
     sleep 1
+    rx2=$(cat /sys/class/net/"$iface"/statistics/rx_bytes 2>/dev/null || echo 0)
+    tx2=$(cat /sys/class/net/"$iface"/statistics/tx_bytes 2>/dev/null || echo 0)
 
-    # 再次读取用于差值计算
-    IFS=' ' read -r cpu user nice system idle iowait irq softirq steal < /proc/stat
-    CPU_IDLE2=$((idle + iowait))
-    CPU_TOTAL2=$((user + nice + system + idle + iowait + irq + softirq + steal))
-    # 重新读取各核
-    n=0
-    for line in $(grep '^cpu[0-9]' /proc/stat); do
-        read -r label u n s id i iw ir si st < <(echo $line)
-        CPU_USED_CUR=$((u + n + s + ir + si))
-        CPU_TOTAL_CUR=$((u + n + s + id + iw + ir + si + st))
-        CPU_USED_PREV=${CPUS1[$n]}
-        CPU_TOTAL_PREV=${CPUS1_TOTAL[$n]}
-        # 计算核心利用率
-        if [ $((CPU_TOTAL_CUR - CPU_TOTAL_PREV)) -ne 0 ]; then
-            CPU_USAGE_N=$(printf "%.0f" "$(echo "($CPU_USED_CUR - $CPU_USED_PREV) * 100 / ($CPU_TOTAL_CUR - $CPU_TOTAL_PREV)" | bc -l)")
-        else
-            CPU_USAGE_N=0
-        fi
-        CPU_USAGE_CORES[$n]=$CPU_USAGE_N
-        ((n++))
-    done
-    # 总体CPU使用率
-    if [ $((CPU_TOTAL2 - CPU_TOTAL1)) -ne 0 ]; then
-        CPU_USAGE_TOTAL=$(printf "%.0f" "$(echo "($CPU_TOTAL2 - CPU_TOTAL1 - ($CPU_IDLE2 - $CPU_IDLE1)) * 100 / ($CPU_TOTAL2 - $CPU_TOTAL1)" | bc -l)")
-    else
-        CPU_USAGE_TOTAL=0
+    bytes_down=$((rx2 - rx1))
+    bytes_up=$((tx2 - tx1))
+    # bytes per second -> 格式化为带单位字符串
+    down=$(format_speed_unit "$bytes_down")
+    up=$(format_speed_unit "$bytes_up")
+    # 用 tab 分隔，外部读取时用 IFS=$'\t' 保证完整性
+    printf '%s\t%s' "$down" "$up"
+}
+
+get_net_total_traffic() {
+    local iface
+    iface=$(get_primary_net_iface)
+    if [[ -z "$iface" ]]; then
+        printf '%s\t%s' "0B" "0B"
+        return
     fi
 
-    # 内存使用
-    MEM_TOTAL=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-    MEM_AVAIL=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
-    MEM_USED=$((MEM_TOTAL - MEM_AVAIL))
-    MEM_PERCENT=$(printf "%.0f" "$(echo "$MEM_USED * 100 / $MEM_TOTAL" | bc -l)")
+    local rx tx down up
+    rx=$(cat /sys/class/net/"$iface"/statistics/rx_bytes 2>/dev/null || echo 0)
+    tx=$(cat /sys/class/net/"$iface"/statistics/tx_bytes 2>/dev/null || echo 0)
 
-    # 磁盘使用 (根分区)
-    DISK_INFO=$(df -h / | awk 'NR==2{print $2" "$3" "$4" "$5}')
-    DISK_TOTAL=$(echo $DISK_INFO | awk '{print $1}')
-    DISK_USED=$(echo $DISK_INFO | awk '{print $2}')
-    DISK_AVAIL=$(echo $DISK_INFO | awk '{print $3}')
-    DISK_PERCENT=$(echo $DISK_INFO | awk '{print $4}')
+    down=$(format_bytes "$rx")
+    up=$(format_bytes "$tx")
+    # 用 tab 分隔
+    printf '%s\t%s' "$down" "$up"
+}
 
-    # 网络速率计算
-    LINE=$(grep "$NET_IFACE:" /proc/net/dev | sed "s/.*://")
-    RX_CUR=$(echo "$LINE" | awk '{print $1}')
-    TX_CUR=$(echo "$LINE" | awk '{print $9}')
-    RX_RATE=$((RX_CUR - RX_PREV))
-    TX_RATE=$((TX_CUR - TX_PREV))
-    RX_PREV=$RX_CUR; TX_PREV=$TX_CUR
-    # 自动转换单位
-    function fmt_speed() {
-        local bytes=$1; local speed unit
-        if [ $bytes -lt 1024 ]; then
-            speed=$bytes; unit="B/s"
-        elif [ $bytes -lt $((1024*1024)) ]; then
-            speed=$(printf "%.1f" "$(echo "$bytes/1024" | bc -l)"); unit="KB/s"
+# -------------------
+# 公网 IP（优先 ipify，带超时回退）
+# -------------------
+get_pub_ip4() {
+    # 只有安装了 curl 才能获取公网IP
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "获取失败 (需安装 curl)"
+        return
+    fi
+    ip=$(curl -4 -s --connect-timeout 3 --max-time 5 https://api.ipify.org || echo "")
+    [[ -z "$ip" ]] && ip=$(curl -4 -s --connect-timeout 3 --max-time 5 https://ifconfig.me || echo "获取失败")
+    echo "${ip:-获取失败}"
+}
+get_pub_ip6() {
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "获取失败 (需安装 curl)"
+        return
+    fi
+    ip=$(curl -6 -s --connect-timeout 3 --max-time 5 https://api64.ipify.org || echo "")
+    [[ -z "$ip" ]] && ip="获取失败"
+    echo "$ip"
+}
+
+# -------------------
+# MAC 地址：取第一个 UP 的接口
+# -------------------
+get_primary_mac() {
+    iface=$(get_primary_net_iface)
+    if [[ -n "$iface" ]]; then
+        # 优先从 /sys 路径获取，更通用
+        cat /sys/class/net/"$iface"/address 2>/dev/null || echo "未知"
+    else
+        echo "未知"
+    fi
+}
+
+# -------------------
+# 负载状态（基于 1-min load / cores）
+# -------------------
+get_load_percentage_and_msg() {
+    local load1 load5 load15 cores pct msg color
+    
+    # 确保 uptime 命令存在
+    if command -v uptime >/dev/null 2>&1; then
+        load_raw=$(uptime | awk -F'load average:' '{print $2}' | sed 's/ //g')
+    else
+        # 兼容性 fallback: 读取 /proc/loadavg
+        load_raw=$(cat /proc/loadavg | awk '{print $1",", $2",", $3}')
+    fi
+    
+    load1=$(echo "$load_raw" | cut -d',' -f1 | xargs)
+    load5=$(echo "$load_raw" | cut -d',' -f2 | xargs)
+    load15=$(echo "$load_raw" | cut -d',' -f3 | xargs)
+
+    cores=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 1)
+    
+    # using awk for float math and rounding
+    pct=$(awk -v l="$load1" -v c="$cores" 'BEGIN{ if(c>0) printf("%.0f", (l/c)*100); else print 0 }')
+    
+    if (( pct < 50 )); then
+        color="$green"
+        msg="运行流畅"
+    elif (( pct < 90 )); then
+        color="$yellow"
+        msg="运行正常"
+    else
+        color="$red"
+        msg="警告：运行堵塞"
+    fi
+    # 返回: 百分比, 颜色变量, 消息, 原始负载1, 原始负载5, 原始负载15
+    echo "$pct" "$color" "$msg" "$load1" "$load5" "$load15"
+}
+
+# -------------------
+# 获取 DNS 解析（优先 getent，fallback dig/host）
+# -------------------
+resolve_first_ipv4() {
+    local domain="$1"
+    local ip
+    if command -v getent >/dev/null 2>&1; then
+        ip=$(getent ahostsv4 "$domain" | awk '{print $1; exit}')
+    fi
+    if [[ -z "$ip" && -n "$(command -v dig 2>/dev/null)" ]]; then
+        ip=$(dig +short A "$domain" | grep -E '^[0-9.]+' | head -n1)
+    fi
+    if [[ -z "$ip" && -n "$(command -v host 2>/dev/null)" ]]; then
+        ip=$(host -4 "$domain" 2>/dev/null | awk '/has address/ {print $4; exit}')
+    fi
+    echo "${ip:-}"
+}
+
+# -------------------
+# 获取 HTTP/HTTPS 状态码（更稳健）
+# -------------------
+get_http_status() {
+    local url="$1"
+    if ! command -v curl >/dev/null 2>&1; then
+        echo ""
+        return
+    fi
+    # 使用 curl -s -o /dev/null -w "%{http_code}"
+    status=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 8 --max-time 8 "$url" 2>/dev/null || echo "")
+    echo "${status:-}"
+}
+
+# -------------------
+# 新增辅助函数 - 增强通用性
+# -------------------
+
+# 增强通用性：获取 TCP/UDP 连接数
+get_net_connections() {
+    # 优先使用 /proc/net/tcp 和 /proc/net/udp 文件，这是最基础的统计方法
+    local tcp_count=0
+    local udp_count=0
+    
+    if [[ -f "/proc/net/tcp" ]]; then
+        # 统计除第一行 (header) 外的行数
+        tcp_count=$(($(wc -l < /proc/net/tcp) - 1))
+    fi
+    
+    if [[ -f "/proc/net/udp" ]]; then
+        udp_count=$(($(wc -l < /proc/net/udp) - 1))
+    fi
+    
+    # 如果文件不存在，尝试使用 ss/netstat (作为 fallback)
+    if (( tcp_count <= 0 && udp_count <= 0 )); then
+        if command -v ss >/dev/null 2>&1; then
+            tcp_count=$(ss -t | wc -l)
+            udp_count=$(ss -u | wc -l)
+            # 减去头部行
+            tcp_count=$((tcp_count > 0 ? tcp_count - 1 : 0))
+            udp_count=$((udp_count > 0 ? udp_count - 1 : 0))
+        elif command -v netstat >/dev/null 2>&1; then
+            # netstat 比较慢，统计 established/listen
+            tcp_count=$(netstat -atn 2>/dev/null | grep -c 'ESTABLISHED\|LISTEN')
+            udp_count=$(netstat -aun 2>/dev/null | grep -c 'udp')
         else
-            speed=$(printf "%.1f" "$(echo "$bytes/1048576" | bc -l)"); unit="MB/s"
+            echo "未知 (需 /proc/net/ 或 ss/netstat)"
+            return
         fi
-        echo "$speed $unit"
-    }
-    RX_FMT=$(fmt_speed $RX_RATE)
-    TX_FMT=$(fmt_speed $TX_RATE)
+    fi
 
-    # 绘制条形图函数（宽度20）
-    draw_bar() {
-        local percent=$1 width=20 filled=$((percent * width / 100))
-        local empty=$((width - filled))
-        printf "["
-        printf "%0.s#" $(seq 1 $filled)
-        printf "%0.s " $(seq 1 $empty)
-        printf "]"
-    }
+    echo "$tcp_count TCP, $udp_count UDP"
+}
 
-    # 缓冲输出并清屏
-    output=""
-    output+="系统运行时间：${DAYS}天 ${HOURS}小时 ${MINS}分钟    当前时间：$CUR_TIME\n"
-    output+="系统负载 (1m 平均)：${LOAD_COLOR}${LOADPERCENT}%${RESET}\n"
-    output+="CPU 总占用： ${CPU_USAGE_TOTAL}% $(draw_bar $CPU_USAGE_TOTAL)\n"
-    for i in "${!CPU_USAGE_CORES[@]}"; do
-        output+=" CPU$i 占用： ${CPU_USAGE_CORES[$i]}% $(draw_bar ${CPU_USAGE_CORES[$i]})\n"
+# 增强通用性：获取 CPU 频率 (GHz)
+get_cpu_freq() {
+    local freq
+    # 1. 最通用：从 /proc/cpuinfo 获取 (通常是标称频率)
+    freq_mhz=$(grep -m1 'cpu MHz' /proc/cpuinfo 2>/dev/null | awk '{print $4}')
+    if [[ -n "$freq_mhz" ]]; then
+        freq=$(awk -v f="$freq_mhz" 'BEGIN{printf "%.2fGHz", f/1000}')
+    fi
+
+    # 2. 尝试使用当前频率 (更精确，但路径可能不同)
+    if [[ -z "$freq" && -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq" ]]; then
+        # freq is in kHz, convert to GHz
+        freq_khz=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq)
+        freq=$(awk -v f="$freq_khz" 'BEGIN{printf "%.2fGHz", f/1000/1000}')
+    fi
+    
+    echo "${freq:-未知}"
+}
+
+# 增强通用性：获取 DNS 服务器地址
+get_dns_servers() {
+    # 使用 grep/awk 过滤掉注释行和空行
+    dns=$(awk '/^nameserver/ {print $2}' /etc/resolv.conf 2>/dev/null | grep -v '^#' | paste -sd, -)
+    echo "${dns:-未知}"
+}
+
+# 增强通用性：获取地理位置（基于公网 IP）
+get_ip_location() {
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "未知 (需安装 curl)"
+        return
+    fi
+
+    local ip=$(get_pub_ip4)
+    if [[ "$ip" == *"失败"* ]]; then
+        echo "获取失败"
+        return
+    fi
+    
+    # 尝试使用 ipinfo.io（JSON），更常用
+    location=$(curl -s --connect-timeout 3 --max-time 5 "https://ipinfo.io/$ip/json" | \
+               awk -F': ' '/"org"|country/ {
+                   gsub(/"/,""); 
+                   if ($1 ~ "org") { org_name = $2; }
+                   if ($1 ~ "country") { country_code = $2; }
+               } END {
+                   if (org_name != "" && country_code != "") {
+                       print org_name " (" country_code ")";
+                   } else if (org_name != "") {
+                       print org_name;
+                   } else if (country_code != "") {
+                       print country_code;
+                   } else {
+                       print "未知";
+                   }
+               }')
+    
+    # Fallback 到纯文本服务
+    if [[ "$location" == "未知" || -z "$location" ]]; then
+        location=$(curl -s --connect-timeout 3 --max-time 5 "https://ip.gs/" | tr -d '\n')
+    fi
+    
+    echo "${location:-未知}"
+}
+
+# 获取网络拥塞控制算法
+get_net_algo() {
+    # /proc/sys/net/ipv4/tcp_congestion_control 比 sysctl 更通用
+    if [[ -f "/proc/sys/net/ipv4/tcp_congestion_control" ]]; then
+        algo=$(cat /proc/sys/net/ipv4/tcp_congestion_control)
+    elif command -v sysctl >/dev/null 2>&1; then
+        algo=$(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk '{print $3}')
+    fi
+    echo "${algo:-未知}"
+}
+
+
+# -------------------
+# 系统信息（增强版 v1.5）
+# -------------------
+system_info() {
+    clear
+    # 标题使用 -e 以便颜色生效
+    echo -e "${blue}=============== 系统信息（增强版 v1.5） ===============${plain}"
+
+    # OS
+    local distro
+    if command -v lsb_release >/dev/null 2>&1; then
+        distro=$(lsb_release -d 2>/dev/null | awk -F':' '{print $2}' | xargs)
+    else
+        # /etc/os-release 是最通用的
+        distro=$(awk -F= '/^PRETTY_NAME/ {gsub(/"/,"",$2); print $2}' /etc/os-release 2>/dev/null || cat /etc/os-release 2>/dev/null | head -n1)
+    fi
+    echo -e "主机名称： ${yellow}$(hostname)${plain}"
+    echo -e "系统版本： ${yellow}${distro:-未知}${plain}"
+    echo -e "内核信息： ${yellow}$(uname -r)${plain}"
+
+    # CPU
+    local cpu_model
+    cpu_model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | awk -F: '{print $2}' | xargs)
+    echo -e "CPU 型号： ${yellow}${cpu_model:-未知}${plain}"
+    cpu_cores=$(nproc --all 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null)
+    echo -e "CPU 核心： ${yellow}${cpu_cores:-未知}${plain}"
+    echo -e "CPU 频率： ${yellow}$(get_cpu_freq)${plain}"
+
+    # CPU 使用
+    cpu_total=$(get_cpu_total_usage)
+    echo -e "CPU 总占： ${yellow}${cpu_total}%${plain}"
+    # 各核
+    cpu_cores_usage=($(get_cpu_cores_usage))
+    printf "CPU 各核： "
+    for i in "${!cpu_cores_usage[@]}"; do
+        printf "[核%s: %b%s%%%b]  " "$i" "$yellow" "${cpu_cores_usage[$i]}" "$plain"
     done
-    # 将 kB 转换为 GB/MB/KB
-    MEM_TOT_H=$(printf "%.0f" "$(echo "$MEM_TOTAL/1024" | bc -l)")
-    MEM_USED_H=$(printf "%.0f" "$(echo "$MEM_USED/1024" | bc -l)")
-    MEM_AVAIL_H=$(printf "%.0f" "$(echo "$MEM_AVAIL/1024" | bc -l)")
-    output+="内存使用： 总${MEM_TOT_H}MB 已用${MEM_USED_H}MB 可用${MEM_AVAIL_H}MB  占用${MEM_PERCENT}% $(draw_bar $MEM_PERCENT)\n"
-    output+="磁盘(/)使用： 总${DISK_TOTAL} 已用${DISK_USED} 可用${DISK_AVAIL}  占用${DISK_PERCENT}\n"
-    output+="网络($NET_IFACE)速率： 上行 ${TX_FMT}  下行 ${RX_FMT}\n"
-    # 清屏并输出
-    printf "\033[H\033[2J$output"
-done
+    printf "\n"
+
+    # MAC
+    echo -e "MAC 地址： ${yellow}$(get_primary_mac)${plain}"
+
+    # 负载状态
+    read -r load_pct load_color load_msg load1 load5 load15 <<< "$(get_load_percentage_and_msg)"
+    echo -e "负载状态： ${load_pct}% [${load1}, ${load5}, ${load15}] （${load_color}${load_msg}${plain}）"
+
+    # TCP/UDP 连接数
+    echo -e "TCP|UDP连接数： ${yellow}$(get_net_connections)${plain}"
+
+    # 内存
+    # 优先使用 -m (MB)
+    mem_info=$(free -m 2>/dev/null || cat /proc/meminfo 2>/dev/null)
+    
+    if [[ -n "$mem_info" ]]; then
+        mem_total=$(echo "$mem_info" | awk '/MemTotal/ {print int($2/1024)} /Mem:/ {print $2}')
+        mem_used=$(echo "$mem_info" | awk '/MemTotal/ {total=int($2/1024)} /MemAvailable/ {avail=int($2/1024)} /Mem:/ {print $3} END {print total-avail}')
+        mem_avail=$(echo "$mem_info" | awk '/MemAvailable/ {print int($2/1024)} /Mem:/ {print $7}')
+    else
+        mem_total=0; mem_used=0; mem_avail=0
+    fi
+
+    mem_pct=0
+    if (( mem_total > 0 )); then
+        mem_pct=$(awk -v t="$mem_total" -v u="$mem_used" 'BEGIN{printf("%.0f", u*100/t)}')
+    fi
+    echo -e "物理内存： ${yellow}${mem_pct}%${plain} (使用:${mem_used} MB/空闲:${mem_avail} MB/总量:${mem_total} MB)"
+    
+    # 虚拟内存 (Swap)
+    if [[ -n "$mem_info" ]]; then
+        swap_total=$(echo "$mem_info" | awk '/SwapTotal/ {print int($2/1024)} /Swap:/ {print $2}')
+        swap_used=$(echo "$mem_info" | awk '/SwapFree/ {free=int($2/1024)} /Swap:/ {print $3} END {print $2-free}')
+        swap_avail=$((swap_total - swap_used))
+    else
+        swap_total=0; swap_used=0; swap_avail=0
+    fi
+    
+    swap_pct=0
+    if (( swap_total > 0 )); then
+        swap_pct=$(awk -v t="$swap_total" -v u="$swap_used" 'BEGIN{printf("%.0f", u*100/t)}')
+    fi
+    echo -e "虚拟内存： ${yellow}${swap_pct}%${plain} (使用:${swap_used} MB/空闲:${swap_avail} MB/总量:${swap_total} MB)"
+
+    # 磁盘（根分区）
+    # df -m / 默认 MB 单位，/proc/mounts 是最通用的根分区检测
+    root_dev=$(awk '$2=="/" {print $1; exit}' /proc/mounts 2>/dev/null)
+    if [[ -n "$root_dev" ]]; then
+        read -r _ d_total d_used d_avail d_percent _ < <(df -m "$root_dev" 2>/dev/null | awk 'NR==2')
+    else
+        # Fallback to df -m /
+        read -r _ d_total d_used d_avail d_percent _ < <(df -m / 2>/dev/null | awk 'NR==2')
+    fi
+    
+    d_total=${d_total:-0}; d_used=${d_used:-0}; d_avail=${d_avail:-0}; d_percent=${d_percent:-0%}
+    echo -e "硬盘占用： ${yellow}${d_percent}${plain} (使用:${d_used} MB/空闲:${d_avail} MB/总量:${d_total} MB)"
+
+    # 总接收/发送
+    IFS=$'\t' read -r total_down total_up <<< "$(get_net_total_traffic)"
+    echo -e "总接收： ${yellow}${total_down}${plain}  总发送： ${yellow}${total_up}${plain}"
+
+    # 网络速度
+    IFS=$'\t' read -r down_speed up_speed <<< "$(get_net_speed)"
+    echo -e "网络速度： 下行：↓ ${yellow}${down_speed}${plain}    上行：↑ ${yellow}${up_speed}${plain}"
+    
+    # 网络算法
+    echo -e "网络算法： ${yellow}$(get_net_algo)${plain}"
+
+    # DNS
+    echo -e "DNS地址： ${yellow}$(get_dns_servers)${plain}"
+
+    # 运营商/地理位置
+    location_isp=$(get_ip_location)
+    # 尝试从 location_isp 拆分出运营商和位置
+    if [[ "$location_isp" == *"("* ]]; then
+        isp=$(echo "$location_isp" | cut -d '(' -f1 | xargs)
+        geo=$(echo "$location_isp" | cut -d '(' -f2 | cut -d ')' -f1 | xargs)
+    else
+        isp="未知"
+        geo="$location_isp"
+    fi
+    echo -e "运营商： ${yellow}${isp}${plain}"
+    echo -e "地理位置： ${yellow}${geo}${plain}"
+
+    # 系统时间
+    echo -e "系统时间： ${yellow}$(date "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "未知")${plain}"
+
+    # 公网 IP
+    echo -e "公网IPv4： ${yellow}$(get_pub_ip4)${plain}"
+    echo -e "公网IPv6： ${yellow}$(get_pub_ip6)${plain}"
+
+    # Uptime
+    uptime_sec=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
+    if [[ -n "$uptime_sec" ]]; then
+        days=$(( uptime_sec/86400 ))
+        hours=$(( (uptime_sec%86400)/3600 ))
+        minutes=$(( (uptime_sec%3600)/60 ))
+        uptime_str="${days} 天 ${hours} 小时 ${minutes} 分"
+    else
+        uptime_str="未知"
+    fi
+    echo -e "运行时间： ${yellow}${uptime_str}${plain}"
+
+    echo -e "${blue}========================================${plain}"
+    # 恢复 IFS
+    IFS=' '
+    read -p "按回车返回菜单..." temp
+}
+
+# -------------------
+# IP/HTTP 测试（表格）
+# -------------------
+platforms=(
+"dazn.com"
+"hotstar.com"
+"disneyplus.com"
+"netflix.com"
+"youtube.com"
+"primevideo.com"
+"tvbanywhere.com"
+"iq.com"
+"viu.com"
+"googlevideo.com"
+"nflxvideo.net"
+"spotify.com"
+"store.steampowered.com"
+"chat.openai.com"
+"bing.com"
+)
+
+print_table_header() {
+    printf "%-25s %-25s %-15s %-15s %-15s %-15s\n" \
+    "Domain" "DNS" "HTTPS" "HTTP" "IP" "PING"
+    printf "%-25s %-25s %-15s %-15s %-15s %-15s\n" \
+    "-------------------------" "-------------------------" "---------------" "---------------" "---------------" "---------------"
+}
+
+test_domain_table() {
+    local domain="$1"
+    local ip dns_out https_out http_out raw_out ping_out
+
+    ip=$(resolve_first_ipv4 "$domain")
+    if [[ -n "$ip" ]]; then dns_out="正常 ($ip)"; else dns_out="异常 (解析失败)"; fi
+
+    local test_url="https://$domain"
+    local raw_ip_url="https://$domain"
+
+    if [[ "$domain" == http* ]]; then
+        test_url="$domain"
+        local naked_domain=$(echo "$domain" | awk -F'/' '{print $3}')
+        ip=$(resolve_first_ipv4 "$naked_domain")
+        if [[ -n "$ip" ]]; then raw_ip_url="$test_url"; else raw_ip_url=""; fi
+    fi
+    
+    # HTTPS
+    https_code=$(get_http_status "https://$domain")
+    if [[ -z "$https_code" ]]; then https_out="失败 (超时)"; elif [[ "$https_code" -ge 200 && "$https_code" -lt 400 ]]; then https_out="正常 ($https_code)"; else https_out="异常 ($https_code)"; fi
+
+    # HTTP
+    http_code=$(get_http_status "http://$domain")
+    if [[ -z "$http_code" ]]; then http_out="失败 (超时)"; elif [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then http_out="正常 ($http_code)"; else http_out="异常 ($http_code)"; fi
+    
+    # IP 强制连接测试 (raw_out)
+    if [[ -n "$ip" && -n "$raw_ip_url" && -n "$(command -v curl 2>/dev/null)" ]]; then
+        raw_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 8 --max-time 8 --resolve "$(echo "$domain" | cut -d'/' -f1):443:$ip" "https://$domain" 2>/dev/null || echo "")
+        if [[ -z "$raw_code" ]]; then raw_out="失败 (超时)"; elif [[ "$raw_code" -ge 200 && "$raw_code" -lt 400 ]]; then raw_out="正常 ($raw_code)"; else raw_out="异常 ($raw_code)"; fi
+    else
+        raw_out="无法测试(无 IP)"
+    fi
+
+    # PING
+    # 使用 IP 而不是域名进行 ping，更可靠
+    if [[ -n "$ip" && ping -c1 -W1 "$ip" &>/dev/null ]]; then ping_out="可 ping"; else ping_out="不可 ping"; fi
+
+    printf "%-25s %-25s %-15s %-15s %-15s %-15s\n" \
+    "$domain" "$dns_out" "$https_out" "$http_out" "$raw_out" "$ping_out"
+}
+
+test_ip_connect_table() {
+    clear
+    echo -e "${blue}=========== 高级 IP 测试（表格模式） ===========${plain}"
+    echo
+    if ! command -v curl >/dev/null 2>&1; then
+        echo -e "${red}错误：本功能需要安装 curl${plain}"
+        read -p "按回车返回菜单..." tmp
+        return
+    fi
+    print_table_header
+    for domain in "${platforms[@]}"; do
+        test_domain_table "$domain"
+    done
+    echo
+    echo -e "${green}测试完成！${plain}"
+    read -p "按回车返回菜单..." tmp
+}
+
+# -------------------
+# 脚本更新
+# -------------------
+update_script() {
+    echo -e "${yellow}正在更新脚本...${plain}"
+    if command -v curl >/dev/null 2>&1 && curl -sSL "$SCRIPT_URL" -o tool.sh; then
+        chmod +x tool.sh
+        echo -e "${green}脚本更新成功！使用 ./tool.sh 重新运行${plain}"
+        exit 0
+    else
+        echo -e "${red}更新失败，确认 SCRIPT_URL 与网络可达，且系统安装 curl${plain}"
+    fi
+    read -p "按回车返回菜单..." tmp
+}
+
+# -------------------
+# 系统清理 (新增占位)
+# -------------------
+system_clean() {
+    echo -e "${blue}===== 系统清理 =====${plain}"
+    if [[ "$PKG" == "apt" ]]; then
+        sudo apt autoremove -y 2>/dev/null
+        sudo apt clean 2>/dev/null
+        echo -e "${green}APT 清理完成！${plain}"
+    elif [[ "$PKG" == "dnf" || "$PKG" == "yum" ]]; then
+        sudo $PKG autoremove -y 2>/dev/null
+        sudo $PKG clean all 2>/dev/null
+        echo -e "${green}DNF/YUM 清理完成！${plain}"
+    else
+        echo -e "${red}未识别包管理器，请手动清理缓存${plain}"
+    fi
+    read -p "按回车返回菜单..." tmp
+}
+
+# -------------------
+# 菜单
+# -------------------
+menu() {
+    while true; do
+        clear
+        echo -e "${green}=============== Linux 多功能工具箱 ===============${plain}"
+        echo -e "脚本版本：${yellow}$SCRIPT_VERSION${plain}"
+        echo
+        echo "1) 系统信息"
+        echo "2) 系统更新"
+        echo "3) 系统清理"
+        echo "4) 系统工具"
+        echo "5) 应用市场"
+        echo "6) 安装宝塔"
+        echo "7) 安装1Panel"
+        echo "8) IP 测试"
+        echo "9) 脚本更新"
+        echo "0) 脚本退出"
+        echo
+        read -p "请输入数字回车：" choice
+
+        case $choice in
+            1) system_info ;;
+            2)
+                if [[ "$PKG" == "apt" ]]; then sudo apt update 2>/dev/null && sudo apt upgrade -y 2>/dev/null; 
+                elif [[ "$PKG" == "dnf" || "$PKG" == "yum" ]]; then sudo $PKG upgrade -y 2>/dev/null; 
+                else echo "未识别包管理器，请手动更新"; fi
+                read -p "按回车返回菜单..." tmp ;;
+            3) system_clean ;;
+            4)
+                echo -e "${blue}===== 系统工具 =====${plain}"
+                echo "1) htop"
+                echo "2) iftop"
+                echo "3) vnstat"
+                echo "4) 返回菜单"
+                read -p "请选择：" t
+                case $t in
+                    1) $PKG && sudo $PKG install -y htop >/dev/null 2>&1; command -v htop >/dev/null 2>&1 && htop || echo "请安装 htop";;
+                    2) sudo $PKG install -y iftop >/dev/null 2>&1; command -v iftop >/dev/null 2>&1 && iftop || echo "请安装 iftop";;
+                    3) sudo $PKG install -y vnstat >/dev/null 2>&1; command -v vnstat >/dev/null 2>&1 && vnstat || echo "请安装 vnstat";;
+                    *) ;;
+                esac
+                read -p "按回车返回菜单..." tmp ;;
+            5) app_market ;;
+            6) install_bt; read -p "按回车返回菜单..." tmp ;;
+            7) install_1panel; read -p "按回车返回菜单..." tmp ;;
+            8) test_ip_connect_table ;;
+            9) update_script ;;
+            0) echo "退出."; exit 0 ;;
+            *) echo "无效选择"; read -p "按回车..." tmp ;;
+        esac
+    done
+}
+
+# 小工具：应用市场/安装脚本（保留原样）
+app_market() {
+    echo -e "${blue}===== 应用市场 =====${plain}"
+    echo "1) Docker"
+    echo "2) Nginx"
+    echo "3) Node.js"
+    echo "4) 返回菜单"
+    read -p "请选择：" a
+    case $a in
+        1) 
+            if [[ "$PKG" == "apt" ]]; then sudo apt install -y docker.io 2>/dev/null; 
+            else sudo $PKG install -y docker 2>/dev/null; fi ;;
+        2) sudo $PKG install -y nginx 2>/dev/null ;;
+        3) curl -fsSL https://deb.nodesource.com/setup_18.x | sudo bash - 2>/dev/null && sudo apt install -y nodejs 2>/dev/null ;;
+        *) ;;
+    esac
+    read -p "按回车返回菜单..." tmp
+}
+
+install_bt() {
+    echo -e "${yellow}正在安装宝塔...${plain}"
+    curl -sSO https://download.bt.cn/install/install_panel.sh 2>/dev/null && bash install_panel.sh
+}
+
+install_1panel() {
+    echo -e "${yellow}正在安装 1Panel...${plain}"
+    curl -sSL https://resource.fit2cloud.com/1panel/install.sh 2>/dev/null | bash
+}
+
+# 启动菜单
+menu
