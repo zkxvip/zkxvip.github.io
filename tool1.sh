@@ -248,7 +248,7 @@ get_pub_ip6() {
     if ! command -v curl >/dev/null 2>&1; then
         echo "获取失败 (需安装 curl)"
         return
-    }
+    fi # <--- 修复点：确保 if 语句以 fi 结束
     ip=$(curl -6 -s --connect-timeout 3 --max-time 5 https://api64.ipify.org || echo "")
     [[ -z "$ip" ]] && ip="获取失败"
     echo "$ip"
@@ -661,7 +661,7 @@ test_domain_table() {
         raw_out="无法测试(无 IP)"
     fi
 
-    # PING 修复：将复杂的 [[ ... && ... ]] 拆分为 [[ ... ]] && command
+    # PING 修复：使用更兼容的 [[ ... ]] && command 结构
     # 使用 IP 而不是域名进行 ping，更可靠
     if [[ -n "$ip" ]] && ping -c1 -W1 "$ip" &>/dev/null; then 
         ping_out="可 ping"
