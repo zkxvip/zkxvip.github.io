@@ -248,7 +248,7 @@ get_pub_ip6() {
     if ! command -v curl >/dev/null 2>&1; then
         echo "获取失败 (需安装 curl)"
         return
-    fi # <--- 修复点：确保 if 语句以 fi 结束
+    fi
     ip=$(curl -6 -s --connect-timeout 3 --max-time 5 https://api64.ipify.org || echo "")
     [[ -z "$ip" ]] && ip="获取失败"
     echo "$ip"
@@ -502,16 +502,47 @@ system_info() {
     # TCP/UDP 连接数
     echo -e "TCP|UDP连接数： ${yellow}$(get_net_connections)${plain}"
 
-    # 内存
-    # 优先使用 -m (MB)
-    mem_info=$(free -m 2>/dev/null || cat /proc/meminfo 2>/dev/null)
+    # -------------------
+    # 内存 (修复点: 使用更健壮的内存提取逻辑)
+    # -------------------
+    mem_total=0; mem_used=0; mem_avail=0
     
-    if [[ -n "$mem_info" ]]; then
-        mem_total=$(echo "$mem_info" | awk '/MemTotal/ {print int($2/1024)} /Mem:/ {print $2}')
-        mem_used=$(echo "$mem_info" | awk '/MemTotal/ {total=int($2/1024)} /MemAvailable/ {avail=int($2/1024)} /Mem:/ {print $3} END {print total-avail}')
-        mem_avail=$(echo "$mem_info" | awk '/MemAvailable/ {print int($2/1024)} /Mem:/ {print $7}')
-    else
-        mem_total=0; mem_used=0; mem_avail=0
+    # 尝试使用 free -m (更直接)
+    if command -v free >/dev/null 2>&1; then
+        # 提取第二行（Mem:）的数据。CentOS Stream 9 可能返回 MemTotal, MemUsed, MemFree, MemShared, MemBuff/Cache, MemAvailable
+        # 保持通用性：使用 awk 提取总内存、已使用、可用内存
+        read -r _ m_total m_used m_free m_shared m_cache m_avail <<< "$(free -m | awk 'NR==2')"
+        
+        mem_total=${m_total:-0}
+        mem_avail=${m_avail:-0}
+        
+        # 如果 $m_avail 缺失（旧版 free），则手动计算
+        if [[ "$mem_avail" -le 0 ]] && [[ -n "$m_free" ]] && [[ -n "$m_cache" ]]; then
+            # 兼容旧版 free: Avail = Free + Buff/Cache
+            mem_avail=$((m_free + m_cache))
+        fi
+        
+        # 已使用 = 总量 - 可用
+        mem_used=$((mem_total - mem_avail))
+    
+    # Fallback to /proc/meminfo
+    elif [[ -f "/proc/meminfo" ]]; then
+        mem_total_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+        mem_free_kb=$(grep MemFree /proc/meminfo | awk '{print $2}')
+        mem_buffer_kb=$(grep Buffers /proc/meminfo | awk '{print $2}')
+        mem_cached_kb=$(grep Cached /proc/meminfo | awk '{print $2}')
+        mem_avail_kb=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+
+        mem_total=$((mem_total_kb / 1024))
+        
+        if [[ -n "$mem_avail_kb" ]]; then
+            mem_avail=$((mem_avail_kb / 1024))
+        else
+            # 兼容旧内核: Avail = Free + Buffers + Cached
+            mem_avail=$(((mem_free_kb + mem_buffer_kb + mem_cached_kb) / 1024))
+        fi
+        
+        mem_used=$((mem_total - mem_avail))
     fi
 
     mem_pct=0
@@ -522,8 +553,8 @@ system_info() {
     
     # 虚拟内存 (Swap)
     if [[ -n "$mem_info" ]]; then
-        swap_total=$(echo "$mem_info" | awk '/SwapTotal/ {print int($2/1024)} /Swap:/ {print $2}')
-        swap_used=$(echo "$mem_info" | awk '/SwapFree/ {free=int($2/1024)} /Swap:/ {print $3} END {print $2-free}')
+        swap_total=$(free -m 2>/dev/null | awk '/Swap:/ {print $2}')
+        swap_used=$(free -m 2>/dev/null | awk '/Swap:/ {print $3}')
         swap_avail=$((swap_total - swap_used))
     else
         swap_total=0; swap_used=0; swap_avail=0
@@ -535,7 +566,9 @@ system_info() {
     fi
     echo -e "虚拟内存： ${yellow}${swap_pct}%${plain} (使用:${swap_used} MB/空闲:${swap_avail} MB/总量:${swap_total} MB)"
 
+    # -------------------
     # 磁盘（根分区）
+    # -------------------
     # df -m / 默认 MB 单位，/proc/mounts 是最通用的根分区检测
     root_dev=$(awk '$2=="/" {print $1; exit}' /proc/mounts 2>/dev/null)
     if [[ -n "$root_dev" ]]; then
