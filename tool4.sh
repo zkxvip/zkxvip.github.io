@@ -275,7 +275,7 @@ system_info() {
     printf "CPU 各核： "
     for i in "${!cpu_cores_usage[@]}"; do
         # printf 不会自动添加换行；每项后加两个空格便于阅读
-        printf "[核:%s] %b%s%%%b  " "$i" "$yellow" "${cpu_cores_usage[$i]}" "$plain"
+        printf "[核%s]: %b%s%%%b  " "$i" "$yellow" "${cpu_cores_usage[$i]}" "$plain"
     done
     printf "\n"
 
