@@ -302,11 +302,11 @@ system_info() {
     mem_used=$(free -m | awk '/Mem:/ {print $3}')
     mem_avail=$(free -m | awk '/Mem:/ {print $7}')
     mem_pct=$(awk -v t="$mem_total" -v u="$mem_used" 'BEGIN{printf("%.0f", u*100/t)}')
-    echo -e "内存占用： ${yellow}${mem_pct}%${plain} (${mem_used} MB/${mem_avail} MB/${mem_total} MB)"
+    echo -e "内存占用： ${yellow}${mem_pct}%${plain} (使用:${mem_used} MB/空闲:${mem_avail} MB/总量:${mem_total} MB)"
 
     # 磁盘（根分区）
     read -r _ d_total d_used d_avail d_percent _ < <(df -m / | awk 'NR==2')
-    echo -e "硬盘占用： ${yellow}${d_percent}${plain} (${d_used} MB/${d_avail} MB/${d_total} MB)"
+    echo -e "硬盘占用： ${yellow}${d_percent}${plain} (使用:${d_used} MB/空闲:${d_avail} MB/总量:${d_total} MB)"
 
     # 网络速度
     # get_net_speed 使用 tab 作为分隔符，读取时设置 IFS=$'\t' 保证带单位字符串完整
