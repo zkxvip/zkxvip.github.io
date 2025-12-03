@@ -248,7 +248,7 @@ get_pub_ip6() {
     if ! command -v curl >/dev/null 2>&1; then
         echo "获取失败 (需安装 curl)"
         return
-    fi
+    }
     ip=$(curl -6 -s --connect-timeout 3 --max-time 5 https://api64.ipify.org || echo "")
     [[ -z "$ip" ]] && ip="获取失败"
     echo "$ip"
@@ -313,10 +313,10 @@ resolve_first_ipv4() {
     if command -v getent >/dev/null 2>&1; then
         ip=$(getent ahostsv4 "$domain" | awk '{print $1; exit}')
     fi
-    if [[ -z "$ip" && -n "$(command -v dig 2>/dev/null)" ]]; then
+    if [[ -z "$ip" ]] && command -v dig >/dev/null 2>&1; then
         ip=$(dig +short A "$domain" | grep -E '^[0-9.]+' | head -n1)
     fi
-    if [[ -z "$ip" && -n "$(command -v host 2>/dev/null)" ]]; then
+    if [[ -z "$ip" ]] && command -v host >/dev/null 2>&1; then
         ip=$(host -4 "$domain" 2>/dev/null | awk '/has address/ {print $4; exit}')
     fi
     echo "${ip:-}"
@@ -386,7 +386,7 @@ get_cpu_freq() {
     fi
 
     # 2. 尝试使用当前频率 (更精确，但路径可能不同)
-    if [[ -z "$freq" && -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq" ]]; then
+    if [[ -z "$freq" ]] && [[ -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq" ]]; then
         # freq is in kHz, convert to GHz
         freq_khz=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq)
         freq=$(awk -v f="$freq_khz" 'BEGIN{printf "%.2fGHz", f/1000/1000}')
@@ -654,16 +654,20 @@ test_domain_table() {
     if [[ -z "$http_code" ]]; then http_out="失败 (超时)"; elif [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then http_out="正常 ($http_code)"; else http_out="异常 ($http_code)"; fi
     
     # IP 强制连接测试 (raw_out)
-    if [[ -n "$ip" && -n "$raw_ip_url" && -n "$(command -v curl 2>/dev/null)" ]]; then
+    if [[ -n "$ip" ]] && command -v curl >/dev/null 2>&1; then
         raw_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 8 --max-time 8 --resolve "$(echo "$domain" | cut -d'/' -f1):443:$ip" "https://$domain" 2>/dev/null || echo "")
         if [[ -z "$raw_code" ]]; then raw_out="失败 (超时)"; elif [[ "$raw_code" -ge 200 && "$raw_code" -lt 400 ]]; then raw_out="正常 ($raw_code)"; else raw_out="异常 ($raw_code)"; fi
     else
         raw_out="无法测试(无 IP)"
     fi
 
-    # PING
+    # PING 修复：将复杂的 [[ ... && ... ]] 拆分为 [[ ... ]] && command
     # 使用 IP 而不是域名进行 ping，更可靠
-    if [[ -n "$ip" && ping -c1 -W1 "$ip" &>/dev/null ]]; then ping_out="可 ping"; else ping_out="不可 ping"; fi
+    if [[ -n "$ip" ]] && ping -c1 -W1 "$ip" &>/dev/null; then 
+        ping_out="可 ping"
+    else 
+        ping_out="不可 ping"
+    fi
 
     printf "%-25s %-25s %-15s %-15s %-15s %-15s\n" \
     "$domain" "$dns_out" "$https_out" "$http_out" "$raw_out" "$ping_out"
