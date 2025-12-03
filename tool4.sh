@@ -312,7 +312,7 @@ system_info() {
     # get_net_speed 使用 tab 作为分隔符，读取时设置 IFS=$'\t' 保证带单位字符串完整
     IFS=$'\t' read -r down_speed up_speed <<< "$(get_net_speed)"
     # 使用 echo -e 打印
-    echo -e "网络速度： ↓ ${yellow}${down_speed}${plain}   ↑ ${yellow}${up_speed}${plain}"
+    echo -e "网络速度： 下行：↓ ${yellow}${down_speed}${plain}   上行：↑ ${yellow}${up_speed}${plain}"
 
     echo -e "${blue}========================================${plain}"
     read -p "按回车返回菜单..." temp
