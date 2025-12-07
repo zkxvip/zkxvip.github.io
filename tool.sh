@@ -2,7 +2,6 @@
 # =====================================================
 # Linux 多功能工具箱 — 主体文件 1.5.3 (静默加载)
 # 负责：菜单、核心逻辑、自动检测、下载、验证并引入所有模块
-# 只有在错误时才会有提示输出。
 # =====================================================
 
 SCRIPT_VERSION="1.5.3"
@@ -39,15 +38,15 @@ detect_pkg_mgr
 # 依赖文件列表
 # -------------------
 MODULE_FILES=(
-    "system_info.sh"     # 1) 系统信息
-    "system_update.sh"   # 2) 系统更新
-    "system_clean.sh"    # 3) 系统清理
-    "system_tools.sh"    # 4) 系统工具
-    "app_market.sh"      # 5) 应用市场
-    "panel_tools.sh"     # 6) 面板工具
-    "security.sh"        # 7) 安全防御
-    "net_test.sh"        # 8) 网络测试
-    "script_update.sh"   # 9) 脚本更新
+    "system_info.sh"
+    "system_update.sh"
+    "system_clean.sh"
+    "system_tools.sh"
+    "app_market.sh"
+    "panel_tools.sh"
+    "security.sh"
+    "net_test.sh"
+    "script_update.sh"
 )
 
 # -------------------
@@ -84,13 +83,12 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 # 循环检查和引入所有模块
-# 移除 "正在加载功能模块..." 和 "所有模块加载完成。" 的提示
 for file in "${MODULE_FILES[@]}"; do
     check_and_download "$file"
 done
 
 # -------------------
-# 菜单
+# 菜单 (更新选项 9)
 # -------------------
 menu() {
     while true; do
@@ -106,7 +104,7 @@ menu() {
         echo "6) 面板工具"
         echo "7) 安全防御"
         echo "8) 网络测试"
-        echo "9) 脚本更新"
+        echo "9) 修复更新"
         echo "0) 脚本退出"
         echo
         read -p "请输入数字回车：" choice
