@@ -1,147 +1,229 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Linux 一键多功能工具箱 - tool.sh</title>
-<style>
-    body {
-        margin: 0;
-        font-family: "Segoe UI", Arial, sans-serif;
-        background: #0d1117;
-        color: #c9d1d9;
-        line-height: 1.6;
-    }
-
-    header {
-        padding: 40px 20px;
-        text-align: center;
-        background: linear-gradient(135deg, #0066ff55, #00ffaa22);
-        border-bottom: 1px solid #222;
-    }
-
-    h1 {
-        font-size: 32px;
-        margin-bottom: 10px;
-        color: #58a6ff;
-    }
-
-    h2 {
-        color: #58a6ff;
-        margin-top: 40px;
-    }
-
-    .container {
-        max-width: 900px;
-        margin: auto;
-        padding: 20px;
-    }
-
-    .card {
-        background: #161b22;
-        padding: 20px;
-        border-radius: 10px;
-        margin-top: 20px;
-        border: 1px solid #30363d;
-        box-shadow: 0 0 10px #00000055;
-    }
-
-    .button {
-        display: inline-block;
-        padding: 12px 22px;
-        background: #238636;
-        color: white;
-        border-radius: 8px;
-        text-decoration: none;
-        font-size: 16px;
-        margin-top: 10px;
-        transition: 0.2s;
-    }
-    .button:hover {
-        background: #2ea043;
-    }
-
-    pre {
-        background: #0d1117;
-        border: 1px solid #30363d;
-        padding: 16px;
-        border-radius: 8px;
-        overflow-x: auto;
-        color: #9cdcfe;
-    }
-
-    footer {
-        text-align: center;
-        padding: 20px;
-        color: #555;
-        margin-top: 40px;
-        font-size: 14px;
-    }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linux 多功能工具箱 - tool.sh</title>
+    <style>
+        /* 全局样式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            background-color: #f7f7f7;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        /* 头部 */
+        header {
+            background-color: #0056b3;
+            color: white;
+            padding: 50px 0;
+            text-align: center;
+        }
+        header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+        header p {
+            font-size: 1.2em;
+            opacity: 0.8;
+        }
+        /* 特点部分 */
+        .features {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin: 40px 0;
+            text-align: center;
+        }
+        .feature-item {
+            flex: 1;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .feature-item h3 {
+            color: #0056b3;
+        }
+        /* 运行代码区 */
+        .install-section {
+            background-color: #333;
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+        }
+        .install-section h2 {
+            text-align: center;
+            color: #4CAF50; /* 绿色 */
+            margin-top: 0;
+        }
+        .code-box {
+            background-color: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            cursor: pointer; /* 提示可点击 */
+        }
+        .code-box code {
+            display: block;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .code-tip {
+            text-align: center;
+            margin-top: 10px;
+            color: #bbb;
+            font-size: 0.9em;
+        }
+        /* 功能列表 */
+        .function-list {
+            margin-bottom: 40px;
+        }
+        .function-list h2 {
+            text-align: center;
+            color: #0056b3;
+            margin-bottom: 30px;
+        }
+        .func-group {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .func-group h3 {
+            color: #d9534f; /* 红色 */
+            border-bottom: 2px solid #d9534f;
+            padding-bottom: 5px;
+            margin-top: 0;
+        }
+        .func-group ul {
+            list-style: disc inside;
+            padding-left: 0;
+        }
+        .func-group li {
+            margin-bottom: 8px;
+        }
+        /* 页脚 */
+        footer {
+            text-align: center;
+            padding: 20px 0;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+        }
+        .copy-success {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+    </style>
 </head>
 <body>
 
-<header>
-    <h1>Linux 多功能工具箱</h1>
-    <p>一键系统信息、系统清理、IP 测试、应用安装的万能脚本</p>
-</header>
+    <header>
+        <div class="container">
+            <h1>🛠️ Linux 多功能工具箱</h1>
+            <p>一站式服务器运维利器，让您的 Linux 管理更简单、更高效。</p>
+        </div>
+    </header>
 
-<div class="container">
+    <div class="container">
 
-    <div class="card">
-        <h2>🚀 一键运行脚本</h2>
-        <p>在任意 Linux 环境中执行以下命令即可运行：</p>
-        <pre>bash <(curl -sL https://zkxvip.github.io/tool.sh)</pre>
-        <a class="button" href="http://your-domain/tool.sh">点击下载脚本</a>
+        <section class="features">
+            <div class="feature-item">
+                <h3>极简主义</h3>
+                <p>单个文件，零依赖安装。只需一行命令，即可开始所有操作。</p>
+            </div>
+            <div class="feature-item">
+                <h3>功能集成</h3>
+                <p>集成系统状态、安全检测、应用部署、网络测试等九大模块。</p>
+            </div>
+            <div class="feature-item">
+                <h3>安全稳定</h3>
+                <p>纯 Bash 脚本编写，轻量高效，在主流发行版上兼容性极佳。</p>
+            </div>
+        </section>
+
+        <section class="install-section">
+            <h2>🔥 立即开始您的服务器管理之旅</h2>
+            <div class="code-box" onclick="copyCode()">
+                <code>bash &lt;(curl -sL https://zkxvip.github.io/tool.sh)</code>
+            </div>
+            <p class="code-tip">点击代码框，自动复制命令</p>
+        </section>
+
+        <section class="function-list">
+            <h2>🧩 核心功能概览</h2>
+            
+            <div class="func-group">
+                <h3>🖥️ 系统状态与维护</h3>
+                <ul>
+                    <li>**系统信息**：全面展示 CPU、内存、硬盘、内核、负载状态等核心指标。</li>
+                    <li>**系统清理**：一键清理软件包缓存和陈旧日志，释放宝贵的磁盘空间。</li>
+                    <li>**修复更新**：彻底清除错误缓存的模块，确保工具箱始终运行在最新且正确的状态。</li>
+                </ul>
+            </div>
+
+            <div class="func-group">
+                <h3>🛡️ 安全与网络防御</h3>
+                <ul>
+                    <li>**安全防御**：查看 SSH 登录失败日志、检查高资源占用恶意进程。</li>
+                    <li>**Web 攻击日志查询**：基于 SQLi/XSS/LFI 关键字，快速定位可疑的 Web 请求。</li>
+                    <li>**远程 IP 统计**：统计当前连接数最多的 Top 20 远程 IP，及时发现异常扫描或攻击。</li>
+                    <li>**网络测试**：集成常用诊断工具，快速排查网络连通性或延迟问题。</li>
+                </ul>
+            </div>
+
+            <div class="func-group">
+                <h3>🔧 应用与扩展</h3>
+                <ul>
+                    <li>**应用市场**：快速安装和配置 Docker、Git、Nginx 等常用软件环境。</li>
+                    <li>**面板工具**：集成主流运维面板（如宝塔、1Panel）的快捷操作或安装脚本。</li>
+                </ul>
+            </div>
+        </section>
+
     </div>
 
-    <div class="card">
-        <h2>📌 脚本主要功能</h2>
-        <ul>
-            <li>✔ 系统信息检测（CPU / 内存 / IPv4 / IPv6 / MAC / 硬盘）</li>
-            <li>✔ 系统更新、系统清理</li>
-            <li>✔ 系统工具：htop、iftop、vnstat</li>
-            <li>✔ 应用快速安装：Docker、Nginx、Node.js</li>
-            <li>✔ 安装宝塔 / 1Panel</li>
-            <li>✔ 高级 IP 连通性检测（顺序逐个平台）</li>
-            <li>✔ 支持地区平台：Netflix / Disney+ / ChatGPT / Steam / Spotify 等</li>
-        </ul>
-    </div>
+    <footer>
+        <p>&copy; 2023-2024 tool.sh. 基于 MIT 许可证开源。</p>
+        <p>项目地址：<a href="https://github.com/zkxvip/tool.sh" style="color: #0056b3;">GitHub 仓库</a></p>
+    </footer>
 
-    <div class="card">
-        <h2>🌐 支持的流媒体 & 服务检测</h2>
-        <p>逐一检测平台连通性、DNS 解析、HTTPS、HTTP、IP 直连、PING：</p>
-        <ul>
-            <li>Dazn</li>
-            <li>HotStar</li>
-            <li>Disney+</li>
-            <li>Netflix</li>
-            <li>YouTube Premium</li>
-            <li>Amazon Prime Video</li>
-            <li>TVBAnywhere+</li>
-            <li>iQiyi Overseas</li>
-            <li>Viu</li>
-            <li>YouTube CDN</li>
-            <li>Netflix Preferred CDN</li>
-            <li>Spotify</li>
-            <li>Steam</li>
-            <li>ChatGPT</li>
-            <li>Bing Region</li>
-        </ul>
-    </div>
+    <div class="copy-success" id="copySuccess">复制成功!</div>
 
-    <div class="card">
-        <h2>🛠 脚本版本</h2>
-        <p>当前版本：<strong>v1.3.0</strong></p>
-        <p>脚本默认从服务器自动更新：</p>
-        <pre>bash tool.sh → 选择「脚本更新」</pre>
-    </div>
-
-</div>
-
-<footer>
-    Linux 多功能工具箱 | 自由开源脚本
-</footer>
-
+    <script>
+        function copyCode() {
+            const codeElement = document.querySelector('.code-box code');
+            const codeText = codeElement.innerText;
+            
+            // 使用现代 API 复制文本
+            navigator.clipboard.writeText(codeText).then(() => {
+                const successMsg = document.getElementById('copySuccess');
+                successMsg.style.opacity = 1;
+                setTimeout(() => {
+                    successMsg.style.opacity = 0;
+                }, 1500);
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制：' + codeText);
+            });
+        }
+    </script>
 </body>
 </html>
