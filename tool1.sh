@@ -4,8 +4,8 @@
 # 包含：系统信息（强化）、顺序 IP 测试、脚本更新等
 # =====================================================
 
-SCRIPT_VERSION="1.5.0"
-SCRIPT_URL="http://your-ip-or-domain/tool.sh"     # 更新脚本使用，请改成你的地址
+SCRIPT_VERSION="1.5.1"
+SCRIPT_URL="https://zkxvip.github.io/tool.sh"     # 更新脚本使用，请改成你的地址
 
 # -------------------
 # 颜色
