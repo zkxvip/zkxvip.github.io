@@ -1,7 +1,6 @@
-# =====================================================
-# Linux 多功能工具箱 — 网络测试模块 (net_test.sh)
+# 文件名：net_test.sh
+# 包含：所有网络测试和 IP/流量获取辅助函数及主测试函数 net_test_func。
 # 依赖：tool.sh 中的颜色变量
-# =====================================================
 
 # -------------------
 # 网络流量 / IP / 格式化
@@ -199,7 +198,7 @@ platforms=(
 
 print_table_header() {
     printf "%-25s %-25s %-15s %-15s %-15s %-15s\n" \
-    "Domain" "DNS" "HTTPS" "HTTP" "IP" "PING"
+    "Domain" "DNS" "HTTPS" "HTTP" "IP直连" "PING"
     printf "%-25s %-25s %-15s %-15s %-15s %-15s\n" \
     "-------------------------" "-------------------------" "---------------" "---------------" "---------------" "---------------"
 }
@@ -211,7 +210,6 @@ test_domain_table() {
     ip=$(resolve_first_ipv4 "$domain")
     if [[ -n "$ip" ]]; then dns_out="正常 ($ip)"; else dns_out="异常 (解析失败)"; fi
     
-    # 针对特殊 URL 处理
     local base_domain
     if [[ "$domain" == http* ]]; then
         base_domain=$(echo "$domain" | awk -F'/' '{print $3}')
@@ -246,10 +244,10 @@ test_domain_table() {
     "$domain" "$dns_out" "$https_out" "$http_out" "$raw_out" "$ping_out"
 }
 
-# 网络测试主函数
-test_ip_connect_table() {
+# 主函数
+net_test_func() {
     clear
-    echo -e "${blue}=========== 网络测试（表格模式） ===========${plain}"
+    echo -e "${blue}=========== 8. 网络测试（表格模式） ===========${plain}"
     echo
     if ! command -v curl >/dev/null 2>&1; then
         echo -e "${red}错误：本功能需要安装 curl${plain}"
