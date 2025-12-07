@@ -1,13 +1,11 @@
-# =====================================================
-# Linux 多功能工具箱 — 系统信息模块 (system_info.sh)
+# 文件名：system_info.sh
+# 包含：所有用于获取 CPU、内存、磁盘、负载等系统硬件和操作系统信息的辅助函数及主显示函数 system_info_func。
 # 依赖：tool.sh 中的颜色变量
-# =====================================================
 
 # -------------------
-# CPU 使用率（总 & 各核） — 标准算法
+# CPU 辅助函数
 # -------------------
 read_cpu_stat_line() {
-    # 参数: line (e.g. "cpu" or "cpu0")
     awk -v line="$1" '$1==line {print $2,$3,$4,$5,$6,$7,$8,$9}' /proc/stat
 }
 
@@ -62,8 +60,6 @@ get_cpu_cores_usage() {
 # -------------------
 # 辅助函数（通用性）
 # -------------------
-
-# 负载状态（基于 1-min load / cores）
 get_load_percentage_and_msg() {
     local load1 load5 load15 cores pct msg color
     
@@ -94,7 +90,6 @@ get_load_percentage_and_msg() {
     echo "$pct" "$color" "$msg" "$load1" "$load5" "$load15"
 }
 
-# 获取 TCP/UDP 连接数
 get_net_connections() {
     local tcp_count=0
     local udp_count=0
@@ -125,7 +120,6 @@ get_net_connections() {
     echo "$tcp_count TCP, $udp_count UDP"
 }
 
-# 获取 CPU 频率 (GHz)
 get_cpu_freq() {
     local freq
     freq_mhz=$(grep -m1 'cpu MHz' /proc/cpuinfo 2>/dev/null | awk '{print $4}')
@@ -139,13 +133,11 @@ get_cpu_freq() {
     echo "${freq:-未知}"
 }
 
-# 获取 DNS 服务器地址
 get_dns_servers() {
     dns=$(awk '/^nameserver/ {print $2}' /etc/resolv.conf 2>/dev/null | grep -v '^#' | paste -sd, -)
     echo "${dns:-未知}"
 }
 
-# 获取网络拥塞控制算法
 get_net_algo() {
     if [[ -f "/proc/sys/net/ipv4/tcp_congestion_control" ]]; then
         algo=$(cat /proc/sys/net/ipv4/tcp_congestion_control)
@@ -155,7 +147,6 @@ get_net_algo() {
     echo "${algo:-未知}"
 }
 
-# MAC 地址：取第一个 UP 的接口
 get_primary_mac() {
     iface=$(get_primary_net_iface) # 依赖于 net_test.sh 中的 get_primary_net_iface
     if [[ -n "$iface" ]]; then
@@ -166,11 +157,11 @@ get_primary_mac() {
 }
 
 # -------------------
-# 系统信息主显示函数（依赖 net_test.sh 中的网络函数）
+# 主函数
 # -------------------
-system_info() {
+system_info_func() {
     clear
-    echo -e "${blue}=============== 系统信息（增强版 v1.5） ===============${plain}"
+    echo -e "${blue}=============== 1. 系统信息（增强版） ===============${plain}"
 
     # OS
     local distro
