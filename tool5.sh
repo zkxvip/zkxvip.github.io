@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # =====================================================
 # Linux 多功能工具箱 — 主体文件 1.5.2
-# 负责：菜单、核心逻辑、文件引用
+# 负责：菜单、核心逻辑、文件引用 (新增自动下载依赖)
 # =====================================================
 
 SCRIPT_VERSION="1.5.2"
-SCRIPT_URL="https://zkxvip.github.io/tool.sh"     # 更新脚本使用，请改成你的地址
+SCRIPT_URL="https://zkxvip.github.io/tool.sh"
+# 🚨 请将此 URL 替换为您存放 system_info.sh 和 net_test.sh 文件的根目录
+GITHUB_BASE_URL="https://zkxvip.github.io" 
 
 # -------------------
 # 颜色
@@ -33,22 +35,46 @@ detect_pkg_mgr() {
 detect_pkg_mgr
 
 # -------------------
-# 引入功能模块
+# 依赖文件检查与下载
 # -------------------
-# 确保在运行 tool.sh 的目录下存在这两个文件
-if [ -f "./system_info.sh" ]; then
-    source ./system_info.sh
-else
-    echo -e "${red}错误: 缺少 system_info.sh 文件!${plain}"
+# 检查 curl 是否存在
+if ! command -v curl >/dev/null 2>&1; then
+    echo -e "${red}错误: 脚本需要 'curl' 命令。请先安装 curl。${plain}"
     exit 1
 fi
 
-if [ -f "./net_test.sh" ]; then
-    source ./net_test.sh
-else
-    echo -e "${red}错误: 缺少 net_test.sh 文件!${plain}"
-    exit 1
-fi
+check_and_download() {
+    local filename="$1"
+    local file_url="$GITHUB_BASE_URL/$filename"
+
+    # 检查当前目录是否存在该文件
+    if [ ! -f "./$filename" ]; then
+        echo -e "${yellow}检测到缺少依赖文件：$filename，正在尝试下载...${plain}"
+        
+        # 尝试下载文件到当前目录
+        if curl -sL "$file_url" -o "./$filename"; then
+            echo -e "${green}✅ $filename 下载成功!${plain}"
+        else
+            echo -e "${red}❌ $filename 下载失败，请检查 GITHUB_BASE_URL 或网络连接。${plain}"
+            exit 1
+        fi
+    fi
+}
+
+# -------------------
+# 引入功能模块
+# -------------------
+
+# 步骤 1: 检查并下载 system_info.sh
+check_and_download "system_info.sh"
+
+# 步骤 2: 检查并下载 net_test.sh
+check_and_download "net_test.sh"
+
+# 步骤 3: 引入文件，加载函数
+source ./system_info.sh
+source ./net_test.sh
+
 
 # -------------------
 # 核心功能函数
