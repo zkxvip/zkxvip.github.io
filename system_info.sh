@@ -255,7 +255,7 @@ system_info_func() {
 
     # 网络信息 (依赖 net_test.sh 函数)
     IFS=$'\t' read -r total_down total_up <<< "$(get_net_total_traffic)"
-    echo -e "总接收： ${yellow}${total_down}${plain}  总发送： ${yellow}${total_up}${plain}"
+    echo -e "总 接 收： ${yellow}${total_down}${plain}  总发送： ${yellow}${total_up}${plain}"
 
     IFS=$'\t' read -r down_speed up_speed <<< "$(get_net_speed)"
     echo -e "网络速度： 下行：↓ ${yellow}${down_speed}${plain}    上行：↑ ${yellow}${up_speed}${plain}"
@@ -271,7 +271,7 @@ system_info_func() {
         isp="未知"
         geo="$location_isp"
     fi
-    echo -e "运营商： ${yellow}${isp}${plain}"
+    echo -e "运 营 商： ${yellow}${isp}${plain}"
     echo -e "地理位置： ${yellow}${geo}${plain}"
 
     # 系统时间 & Uptime & IP
