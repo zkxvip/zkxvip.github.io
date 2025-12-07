@@ -261,7 +261,7 @@ system_info_func() {
     echo -e "网络速度： 下行：↓ ${yellow}${down_speed}${plain}    上行：↑ ${yellow}${up_speed}${plain}"
     
     echo -e "网络算法： ${yellow}$(get_net_algo)${plain}"
-    echo -e "DNS地址： ${yellow}$(get_dns_servers)${plain}"
+    echo -e "DNS 地址： ${yellow}$(get_dns_servers)${plain}"
 
     location_isp=$(get_ip_location)
     if [[ "$location_isp" == *"("* ]]; then
