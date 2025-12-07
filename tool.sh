@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # =====================================================
-# Linux 多功能工具箱 — 主体文件 1.5.2
-# 负责：菜单、核心逻辑、自动检测和引入所有 9 个功能模块
+# Linux 多功能工具箱 — 主体文件 1.5.3
+# 负责：菜单、核心逻辑、自动检测、下载、验证并引入所有模块
 # =====================================================
 
-SCRIPT_VERSION="1.5.2"
+SCRIPT_VERSION="1.5.3"
 SCRIPT_URL="https://zkxvip.github.io/tool.sh"
 # 🚨 替换为您存放所有 .sh 文件的根目录
 GITHUB_BASE_URL="https://zkxvip.github.io" 
 
 # -------------------
-# 颜色
+# 颜色定义（保持不变）
 # -------------------
 green="\033[32m"
 red="\033[31m"
@@ -19,7 +19,7 @@ blue="\033[36m"
 plain="\033[0m"
 
 # -------------------
-# 检测包管理器（apt / dnf / yum）
+# 检测包管理器（保持不变）
 # -------------------
 detect_pkg_mgr() {
     if command -v apt >/dev/null 2>&1; then
@@ -35,22 +35,22 @@ detect_pkg_mgr() {
 detect_pkg_mgr
 
 # -------------------
-# 依赖文件列表
+# 依赖文件列表（保持不变）
 # -------------------
 MODULE_FILES=(
-    "system_info.sh"     # 1) 系统信息
-    "system_update.sh"   # 2) 系统更新
-    "system_clean.sh"    # 3) 系统清理
-    "system_tools.sh"    # 4) 系统工具
-    "app_market.sh"      # 5) 应用市场
-    "panel_tools.sh"     # 6) 面板工具
-    "security.sh"        # 7) 安全防御
-    "net_test.sh"        # 8) 网络测试
-    "script_update.sh"   # 9) 脚本更新
+    "system_info.sh"
+    "system_update.sh"
+    "system_clean.sh"
+    "system_tools.sh"
+    "app_market.sh"
+    "panel_tools.sh"
+    "security.sh"
+    "net_test.sh"
+    "script_update.sh"
 )
 
 # -------------------
-# 依赖文件检查与下载/引入
+# 依赖文件检查与下载/验证/引入 (核心逻辑修改)
 # -------------------
 check_and_download() {
     local filename="$1"
@@ -59,14 +59,24 @@ check_and_download() {
     if [ ! -f "./$filename" ]; then
         echo -e "${yellow}检测到缺少依赖文件：$filename，正在尝试下载...${plain}"
         
-        if curl -sL "$file_url" -o "./$filename"; then
-            echo -e "${green}✅ $filename 下载成功!${plain}"
-        else
-            echo -e "${red}❌ $filename 下载失败，请检查 GITHUB_BASE_URL 或网络连接。${plain}"
+        # 尝试下载文件到当前目录
+        if ! curl -sL "$file_url" -o "./$filename"; then
+            echo -e "${red}❌ $filename 下载失败，请检查 URL 或网络连接。${plain}"
             exit 1
         fi
+        echo -e "${green}✅ $filename 下载成功!${plain}"
     fi
+
+    # 验证文件内容是否为脚本（避免加载 HTML）
+    if grep -qE '^(<!DOCTYPE html>|<html)' "./$filename"; then
+        echo -e "${red}❌ ${filename} 文件验证失败！内容包含 HTML 标记。${plain}"
+        echo -e "${red}这通常意味着 ${file_url} 地址返回了 404 错误页面。${plain}"
+        rm -f "./$filename" # 删除无效文件
+        exit 1
+    fi
+    
     # 引入文件
+    echo -e "   正在引入 ${blue}$filename${plain}..."
     source "./$filename"
 }
 
@@ -84,7 +94,7 @@ done
 echo -e "${green}所有模块加载完成。${plain}"
 
 # -------------------
-# 菜单
+# 菜单（保持不变）
 # -------------------
 menu() {
     while true; do
