@@ -8,8 +8,9 @@ security_defense_func() {
     echo "1) 查看 SSH 登录失败日志 (Lastb)"
     echo "2) 检查高 CPU/内存占用恶意进程"
     echo "3) 网站 Web 攻击日志分析 (Nginx/Apache) [占位符]"
-    echo "4) 查看当前已建立的网络连接 (ESTABLISHED)" # <-- 新增功能
-    echo "5) 返回菜单"
+    echo "4) 查看当前已建立的网络连接 (ESTABLISHED)"
+    echo "5) 统计连接数最多的远程 IP (Top 20)" # <-- 新增功能
+    echo "6) 返回菜单"
     echo
     read -p "请选择：" s
     case $s in
@@ -36,6 +37,19 @@ security_defense_func() {
                 netstat -tunp | grep ESTABLISHED
             else
                 echo -e "${red}未找到 netstat 命令，请安装 net-tools 包。${plain}"
+            fi ;;
+        5)
+            echo -e "${yellow}正在统计连接数最多的前 20 个远程 IP 地址 (可能需要几秒)...${plain}"
+            if command -v netstat >/dev/null 2>&1; then
+                # 使用 ss 代替 netstat，因为它在现代系统上更快更推荐
+                if command -v ss >/dev/null 2>&1; then
+                    ss -anp | grep 'tcp' | awk '{print $5}' | awk -F: '{print $1}' | sort | uniq -c | sort -nr | head -n20
+                else
+                    # Fallback 到 netstat
+                    netstat -anlp | grep 'tcp' | awk '{print $5}' | awk -F: '{print $1}' | sort | uniq -c | sort -nr | head -n20
+                fi
+            else
+                echo -e "${red}未找到 netstat 或 ss 命令，无法执行统计。${plain}"
             fi ;; # <-- 新增执行逻辑
         *) ;;
     esac
