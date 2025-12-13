@@ -15,8 +15,8 @@
 > **注意：** 首次运行时，脚本会自动下载所有依赖模块 (`*.sh` 文件) 到当前目录。
 
 ```bash
-[root@YourServer ~]# bash <(curl -sL [https://zkxvip.github.io/tool.sh](https://zkxvip.github.io/tool.sh))
-
+bash <(curl -sL https://zkxvip.github.io/tool.sh)
+```
 离线运行 / 已下载用户
 如果您已经将 tool.sh 文件下载到本地，可以直接运行：
 
